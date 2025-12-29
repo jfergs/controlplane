@@ -114,11 +114,10 @@ def status_payload() -> dict[str, Any]:
     if mem_percent is not None and mem_percent > thresholds.mem_percent_warn:
         warnings.append(f"High memory usage: {mem_percent}% > {thresholds.mem_percent_warn}%")
 
-    load_avg = load_average()
     load_warns = [
-        ("1m", load_avg.get("1m"), thresholds.load_1m_warn),
-        ("5m", load_avg.get("5m"), thresholds.load_5m_warn),
-        ("15m", load_avg.get("15m"), thresholds.load_15m_warn),
+        ("1m", load.get("1m"), thresholds.load_1m_warn),
+        ("5m", load.get("5m"), thresholds.load_5m_warn),
+        ("15m", load.get("15m"), thresholds.load_15m_warn),
     ]
     for label, value, limit in load_warns:
         if value is not None and value > limit:
