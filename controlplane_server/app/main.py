@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
-from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator import Instrumentator, metrics
 
 from .config import APP_NAME, APP_VERSION
 from .logging_config import configure_logging
@@ -18,7 +18,9 @@ def create_app() -> FastAPI:
     if limiter:
         app.middleware("http")(rate_limit_middleware(limiter))
     app.include_router(router)
-    Instrumentator().instrument(app, metric_namespace="controlplane").expose(
+    instrumentator = Instrumentator()
+    instrumentator.add(metrics.requests()).add(metrics.request_size()).add(metrics.response_size())
+    instrumentator.instrument(app, metric_namespace="controlplane").expose(
         app, include_in_schema=False
     )
     return app
