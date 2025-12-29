@@ -1,0 +1,8 @@
+jobs:
+  ping_localhost:
+    cmd: ["bash", "-lc", "ping -c 2 127.0.0.1"]
+    timeout_sec: 10
+
+  list_root:
+    cmd: ["bash", "-lc", "ls -la / | head -50"]
+    timeout_sec: 10

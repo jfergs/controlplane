@@ -1,0 +1,8 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "Just: fmt",  "type": "shell", "command": "just fmt" },
+    { "label": "Just: test", "type": "shell", "command": "just test" },
+    { "label": "Just: serve","type": "shell", "command": "just serve", "isBackground": true }
+  ]
+}
