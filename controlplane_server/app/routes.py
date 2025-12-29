@@ -247,6 +247,7 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
           <option value="windows">Windows (PowerShell)</option>
         </select>
         <button id="copy-script">Copy script</button>
+        <button id="copy-uninstall">Copy uninstall</button>
       </div>
       <pre id="script" style="white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--panel); padding: 12px; border-radius: 10px; border: 1px solid var(--border);"></pre>
     </div>
@@ -276,6 +277,7 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
     const endpointsDiv = document.getElementById("endpoints");
     const scriptPre = document.getElementById("script");
     const copyBtn = document.getElementById("copy-script");
+    const copyUninstallBtn = document.getElementById("copy-uninstall");
     const osSelect = document.getElementById("os-select");
     const endpointDetail = document.getElementById("endpoint-detail");
 
@@ -671,10 +673,33 @@ echo Agent installed and scheduled.
       scriptPre.textContent = generateScript();
     }
 
+    function generateUninstallScript() {
+      if (osSelect.value === "macos") {
+        return `#!/usr/bin/env bash
+launchctl unload ~/Library/LaunchAgents/com.controlplane.agent.plist 2>/dev/null || true
+rm -f ~/Library/LaunchAgents/com.controlplane.agent.plist
+rm -f ~/controlplane-agent.py
+rm -rf ~/.controlplane-agent
+echo "ControlPlane agent removed."`;
+      }
+      return `@echo off
+schtasks /Delete /TN "ControlPlaneAgent" /F
+del %USERPROFILE%\\controlplane-agent.py
+rd /S /Q %USERPROFILE%\\controlplane-agent
+echo ControlPlane agent removed.
+`;
+    }
+
     copyBtn.addEventListener("click", async () => {
       await navigator.clipboard.writeText(scriptPre.textContent);
       copyBtn.textContent = "Copied!";
       setTimeout(() => (copyBtn.textContent = "Copy script"), 1200);
+    });
+
+    copyUninstallBtn.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(generateUninstallScript());
+      copyUninstallBtn.textContent = "Copied!";
+      setTimeout(() => (copyUninstallBtn.textContent = "Copy uninstall"), 1200);
     });
 
     osSelect.addEventListener("change", refreshScript);
