@@ -223,6 +223,11 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
       </div>
       <pre id="script" style="white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--panel); padding: 12px; border-radius: 10px; border: 1px solid var(--border);"></pre>
     </div>
+    <div class="card">
+      <h3>Endpoint Detail</h3>
+      <div class="muted">Select "View" on an endpoint to load details here.</div>
+      <pre id="endpoint-detail" style="white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--panel); padding: 12px; border-radius: 10px; border: 1px solid var(--border);"></pre>
+    </div>
     <div class="card alt">
       <h3>Warnings</h3>
       <ul class="warnings" id="warnings"></ul>
@@ -245,6 +250,7 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
     const scriptPre = document.getElementById("script");
     const copyBtn = document.getElementById("copy-script");
     const osSelect = document.getElementById("os-select");
+    const endpointDetail = document.getElementById("endpoint-detail");
 
     const defaultUrl = window.location.origin;
     urlInput.value = localStorage.getItem("cp_url") || defaultUrl;
@@ -351,19 +357,23 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
           endpointsDiv.innerHTML = "No endpoints pushed yet.";
           return;
         }
-        endpointsDiv.innerHTML = data.endpoints
-          .map((e) => {
-            const age = timeAgo(e.last_seen);
-            const stale = isStale(e.last_seen);
-            return `<div class="row">
-              <span>${e.endpoint_id} <span class="muted">(${age}${stale ? " • stale" : ""})</span></span>
-              <span>
-                <button onclick="window.viewEndpoint('${e.endpoint_id}')">View</button>
-                <button onclick="window.deleteEndpoint('${e.endpoint_id}')">Delete</button>
-              </span>
-            </div>`;
-          })
-          .join("");
+        const health = summarizeHealth(data.endpoints);
+        endpointsDiv.innerHTML = `
+          <div class="muted">Active: ${health.active} • Stale: ${health.stale} • Total: ${data.endpoints.length}</div>
+          ${data.endpoints
+            .map((e) => {
+              const age = timeAgo(e.last_seen);
+              const stale = isStale(e.last_seen);
+              return `<div class="row">
+                <span>${e.endpoint_id} <span class="muted">(${age}${stale ? " • stale" : ""})</span></span>
+                <span>
+                  <button onclick="window.viewEndpoint('${e.endpoint_id}')">View</button>
+                  <button onclick="window.deleteEndpoint('${e.endpoint_id}')">Delete</button>
+                </span>
+              </div>`;
+            })
+            .join("")}
+        `;
       } catch (err) {
         endpointsDiv.innerHTML = "Error loading endpoints: " + err;
       }
@@ -402,8 +412,10 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
         if (!resp.ok) throw new Error("HTTP " + resp.status);
         const data = await resp.json();
         raw.textContent = JSON.stringify(data, null, 2);
+        endpointDetail.textContent = JSON.stringify(data, null, 2);
       } catch (err) {
         raw.textContent = "Error loading endpoint: " + err;
+        endpointDetail.textContent = "";
       }
     };
 
@@ -422,6 +434,16 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
         alert("Failed to delete: " + err);
       }
     };
+
+    function summarizeHealth(endpoints) {
+      let active = 0;
+      let stale = 0;
+      endpoints.forEach((e) => {
+        if (isStale(e.last_seen)) stale += 1;
+        else active += 1;
+      });
+      return { active, stale };
+    }
 
     function generateScript() {
       const token = tokenInput.value.trim();
