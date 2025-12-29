@@ -3,16 +3,19 @@
   "configurations": [
     {
       "name": "ControlPlane: Uvicorn",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "module": "uvicorn",
       "args": [
         "controlplane_server.app.main:app",
         "--reload",
-        "--host", "0.0.0.0",
-        "--port", "8000"
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
       ],
-      "console": "integratedTerminal"
+      "console": "integratedTerminal",
+      "justMyCode": true
     }
   ]
 }
