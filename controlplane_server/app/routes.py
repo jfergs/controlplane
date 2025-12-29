@@ -132,6 +132,7 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
       --text: #e8ecf5;
       --muted: #9aa4bf;
       --accent: #10a37f;
+      --accent-2: #06b6d4;
       --danger: #ff5c5c;
       --border: #1f2a44;
       --shadow: 0 18px 60px rgba(0,0,0,0.4);
@@ -201,7 +202,7 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
     .row { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
     .warnings { color: var(--danger); margin: 0; padding-left: 16px; }
     .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    input, button {
+    input, button, select {
       border-radius: 10px;
       border: 1px solid var(--border);
       background: var(--panel);
@@ -210,7 +211,7 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
       font-size: 14px;
     }
     button {
-      background: linear-gradient(135deg, #16b48c, #0e8c6d);
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
       border: none;
       cursor: pointer;
       font-weight: 600;
@@ -244,10 +245,18 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
     <div class="card">
       <h3>Onboarding</h3>
       <p class="muted">Generate install scripts for macOS or Windows endpoints. They install dependencies, collect metrics, and POST to this server with the bearer token. Scripts verify TLS by default and back off on errors.</p>
-      <div class="controls" style="padding:8px 0;">
+      <div class="controls" style="padding:8px 0; gap:6px;">
         <select id="os-select" style="padding: 10px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px;">
           <option value="macos">macOS (bash)</option>
           <option value="windows">Windows (PowerShell)</option>
+        </select>
+        <select id="theme-select" style="padding: 10px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px;">
+          <option value="default">Default</option>
+          <option value="midnight">Midnight Teal</option>
+          <option value="graphite">Graphite Neon</option>
+          <option value="obsidian">Obsidian Orange</option>
+          <option value="emerald">Emerald Slate</option>
+          <option value="indigo">Indigo Rose</option>
         </select>
         <button id="copy-script">Copy script</button>
         <button id="copy-uninstall">Copy uninstall</button>
@@ -282,6 +291,7 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
     const copyBtn = document.getElementById("copy-script");
     const copyUninstallBtn = document.getElementById("copy-uninstall");
     const osSelect = document.getElementById("os-select");
+    const themeSelect = document.getElementById("theme-select");
     const endpointDetail = document.getElementById("endpoint-detail");
     const endpointDetailHeader = document.getElementById("endpoint-detail-header");
     const refreshEndpointsBtn = document.getElementById("refresh-endpoints");
@@ -290,6 +300,7 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
     urlInput.value = localStorage.getItem("cp_url") || defaultUrl;
     tokenInput.value = localStorage.getItem("cp_token") || "";
     intervalInput.value = localStorage.getItem("cp_interval") || "5";
+    themeSelect.value = localStorage.getItem("cp_theme") || "graphite";
 
     let timer = null;
 
@@ -297,6 +308,7 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
       localStorage.setItem("cp_token", tokenInput.value);
       localStorage.setItem("cp_url", urlInput.value || defaultUrl);
       localStorage.setItem("cp_interval", intervalInput.value || "5");
+      localStorage.setItem("cp_theme", themeSelect.value || "graphite");
       schedule();
     }
 
@@ -682,6 +694,87 @@ echo Agent installed and scheduled.
     function refreshScript() {
       scriptPre.textContent = generateScript();
     }
+    function applyTheme(name) {
+      const themes = {
+        default: {
+          bg: "#0b0f19",
+          panel: "#151b2b",
+          panelAlt: "#1d2437",
+          text: "#e8ecf5",
+          muted: "#9aa4bf",
+          accent: "#10a37f",
+          accent2: "#06b6d4",
+          danger: "#ff5c5c",
+          border: "#1f2a44",
+        },
+        midnight: {
+          bg: "#0c1117",
+          panel: "#111827",
+          panelAlt: "#1a2335",
+          text: "#e5e7eb",
+          muted: "#9ca3af",
+          accent: "#14b8a6",
+          accent2: "#0ea5e9",
+          danger: "#f87171",
+          border: "#1f2937",
+        },
+        graphite: {
+          bg: "#0b0b10",
+          panel: "#141420",
+          panelAlt: "#1a1a2a",
+          text: "#f4f4f5",
+          muted: "#a1a1aa",
+          accent: "#7c3aed",
+          accent2: "#22d3ee",
+          danger: "#f43f5e",
+          border: "#1f1f2e",
+        },
+        obsidian: {
+          bg: "#0d0f12",
+          panel: "#151a21",
+          panelAlt: "#1c2330",
+          text: "#eaeff7",
+          muted: "#9aa4b5",
+          accent: "#fb923c",
+          accent2: "#f97316",
+          danger: "#ef4444",
+          border: "#1f2733",
+        },
+        emerald: {
+          bg: "#0b1414",
+          panel: "#121c1d",
+          panelAlt: "#182426",
+          text: "#e6f4f1",
+          muted: "#9fb3ad",
+          accent: "#10b981",
+          accent2: "#34d399",
+          danger: "#f87171",
+          border: "#1d2a2a",
+        },
+        indigo: {
+          bg: "#0d1021",
+          panel: "#16192b",
+          panelAlt: "#1d2340",
+          text: "#f3e8ff",
+          muted: "#cbd5e1",
+          accent: "#c084fc",
+          accent2: "#ec4899",
+          danger: "#fb7185",
+          border: "#1f2437",
+        },
+      };
+      const theme = themes[name] || themes.graphite;
+      const root = document.documentElement;
+      root.style.setProperty("--bg", theme.bg);
+      root.style.setProperty("--panel", theme.panel);
+      root.style.setProperty("--panel-alt", theme.panelAlt);
+      root.style.setProperty("--text", theme.text);
+      root.style.setProperty("--muted", theme.muted);
+      root.style.setProperty("--accent", theme.accent);
+      root.style.setProperty("--accent-2", theme.accent2);
+      root.style.setProperty("--danger", theme.danger);
+      root.style.setProperty("--border", theme.border);
+    }
 
     function generateUninstallScript() {
       if (osSelect.value === "macos") {
@@ -711,6 +804,10 @@ echo ControlPlane agent removed.
       copyUninstallBtn.textContent = "Copied!";
       setTimeout(() => (copyUninstallBtn.textContent = "Copy uninstall"), 1200);
     });
+    themeSelect.addEventListener("change", () => {
+      applyTheme(themeSelect.value);
+      localStorage.setItem("cp_theme", themeSelect.value);
+    });
 
     osSelect.addEventListener("change", refreshScript);
     tokenInput.addEventListener("input", refreshScript);
@@ -719,6 +816,7 @@ echo ControlPlane agent removed.
     saveBtn.addEventListener("click", () => savePrefs());
     refreshBtn.addEventListener("click", fetchStatus);
     refreshEndpointsBtn.addEventListener("click", fetchEndpoints);
+    applyTheme(themeSelect.value);
     refreshScript();
     schedule();
   </script>
