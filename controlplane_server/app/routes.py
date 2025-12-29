@@ -203,7 +203,7 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
     </div>
     <div class="card">
       <h3>Onboarding</h3>
-      <p class="muted">Generate install scripts for macOS or Windows endpoints. They install dependencies, collect metrics, and POST to this server with the bearer token.</p>
+      <p class="muted">Generate install scripts for macOS or Windows endpoints. They install dependencies, collect metrics, and POST to this server with the bearer token. Scripts verify TLS by default and back off on errors.</p>
       <div class="controls" style="padding:8px 0;">
         <select id="os-select" style="padding: 10px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px;">
           <option value="macos">macOS (bash)</option>
@@ -355,11 +355,17 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
     function generateScript() {
       const token = tokenInput.value.trim();
       const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
+      const interval = Math.max(10, parseInt(intervalInput.value || "30", 10));
+      const backoff = 10;
+      const maxBackoff = 300;
       if (osSelect.value === "macos") {
         return `#!/usr/bin/env bash
 set -e
 token="${token}"
 server="${base}"
+interval=${interval}
+backoff=${backoff}
+max_backoff=${maxBackoff}
 
 python3 -m venv ~/.controlplane-agent
 source ~/.controlplane-agent/bin/activate
@@ -394,12 +400,23 @@ def payload():
         "battery": {"percent": None, "charging": None},
         "warnings": [],
     }
-while True:
-    try:
-        requests.post(f"{server}/api/push-status", json=payload(), headers={"Authorization": f"Bearer {token}"}, timeout=5)
-    except Exception:
-        pass
-    time.sleep(30)
+def post_loop():
+    global backoff
+    while True:
+        try:
+            requests.post(
+                f"{server}/api/push-status",
+                json=payload(),
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10,
+            )
+            time.sleep(interval)
+            backoff = ${backoff}
+        except Exception:
+            time.sleep(backoff)
+            backoff = min(backoff * 2, ${maxBackoff})
+
+post_loop()
 PY
 
 cat > ~/Library/LaunchAgents/com.controlplane.agent.plist <<'PLIST'
@@ -461,12 +478,20 @@ echo ^        "wifi": {"ssid": None, "rssi_dbm": None, "noise_dbm": None}, >> %U
 echo ^        "battery": {"percent": None, "charging": None}, >> %USERPROFILE%\\controlplane-agent.py
 echo ^        "warnings": [], >> %USERPROFILE%\\controlplane-agent.py
 echo ^    } >> %USERPROFILE%\\controlplane-agent.py
-echo while True: >> %USERPROFILE%\\controlplane-agent.py
-echo ^    try: >> %USERPROFILE%\\controlplane-agent.py
-echo ^        requests.post(f"{SERVER}/api/push-status", json=payload(), headers={"Authorization": f"Bearer {TOKEN}"}, timeout=5) >> %USERPROFILE%\\controlplane-agent.py
-echo ^    except Exception: >> %USERPROFILE%\\controlplane-agent.py
-echo ^        pass >> %USERPROFILE%\\controlplane-agent.py
-echo ^    time.sleep(30) >> %USERPROFILE%\\controlplane-agent.py
+echo backoff=${backoff} >> %USERPROFILE%\\controlplane-agent.py
+echo max_backoff=${maxBackoff} >> %USERPROFILE%\\controlplane-agent.py
+echo interval=${interval} >> %USERPROFILE%\\controlplane-agent.py
+echo def post_loop(): >> %USERPROFILE%\\controlplane-agent.py
+echo ^    global backoff >> %USERPROFILE%\\controlplane-agent.py
+echo ^    while True: >> %USERPROFILE%\\controlplane-agent.py
+echo ^        try: >> %USERPROFILE%\\controlplane-agent.py
+echo ^            requests.post(f"{SERVER}/api/push-status", json=payload(), headers={"Authorization": f"Bearer {TOKEN}"}, timeout=10) >> %USERPROFILE%\\controlplane-agent.py
+echo ^            time.sleep(interval) >> %USERPROFILE%\\controlplane-agent.py
+echo ^            backoff=${backoff} >> %USERPROFILE%\\controlplane-agent.py
+echo ^        except Exception: >> %USERPROFILE%\\controlplane-agent.py
+echo ^            time.sleep(backoff) >> %USERPROFILE%\\controlplane-agent.py
+echo ^            backoff = min(backoff * 2, max_backoff) >> %USERPROFILE%\\controlplane-agent.py
+echo post_loop() >> %USERPROFILE%\\controlplane-agent.py
 
 schtasks /Create /TN "ControlPlaneAgent" /TR "cmd /c set SERVER=%SERVER%^^&^& set TOKEN=%TOKEN%^^&^& call %USERPROFILE%\\controlplane-agent\\Scripts\\activate ^^&^^& python %USERPROFILE%\\controlplane-agent.py" /SC ONLOGON /RL HIGHEST /F
 schtasks /Run /TN "ControlPlaneAgent"
