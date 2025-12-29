@@ -12,6 +12,7 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.30",
     "psutil>=5.9",
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +21,9 @@ dev = [
     "pytest>=8",
     "ruff>=0.4",
 ]
+
+[project.scripts]
+controlplane = "controlplane_cli.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
