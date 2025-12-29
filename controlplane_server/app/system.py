@@ -124,7 +124,7 @@ def status_payload() -> dict[str, Any]:
         if value is not None and value > limit:
             warnings.append(f"High load {label}: {value} > {limit}")
 
-    metrics = {
+    metrics: dict[str, Any] = {
         "uptime_sec": uptime_seconds(),
         "disk_root": DiskInfo(**disk).model_dump(),
         "cpu_temp_c": cpu_temp_c(),
@@ -135,4 +135,60 @@ def status_payload() -> dict[str, Any]:
         "net_io": NetIOInfo(**network_io_counters()).model_dump(),
         "warnings": warnings,
     }
+    wifi = wifi_status()
+    if wifi:
+        metrics["wifi"] = wifi
+    battery = battery_status()
+    if battery:
+        metrics["battery"] = battery
     return metrics
+
+
+def wifi_status() -> dict[str, Any]:
+    """Return Wi-Fi SSID/RSSI/Noise on macOS if available."""
+    if platform.system() != "Darwin":
+        return {}
+    airport = (
+        "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
+    )
+    try:
+        out = subprocess.check_output([airport, "-I"], text=True)
+    except Exception:
+        return {}
+    ssid = rssi = noise = None
+    for line in out.splitlines():
+        if " SSID:" in line:
+            ssid = line.split("SSID:", 1)[1].strip()
+        elif "agrCtlRSSI" in line:
+            try:
+                rssi = int(line.split(":", 1)[1].strip())
+            except Exception:
+                pass
+        elif "agrCtlNoise" in line:
+            try:
+                noise = int(line.split(":", 1)[1].strip())
+            except Exception:
+                pass
+    return {"ssid": ssid, "rssi_dbm": rssi, "noise_dbm": noise}
+
+
+def battery_status() -> dict[str, Any]:
+    """Return battery percentage/charging on macOS if available."""
+    if platform.system() != "Darwin":
+        return {}
+    try:
+        out = subprocess.check_output(["pmset", "-g", "batt"], text=True)
+    except Exception:
+        return {}
+    percent = None
+    charging = None
+    for line in out.splitlines():
+        if "%" in line:
+            try:
+                percent_str = line.split("%")[0].split()[-1]
+                percent = float(percent_str)
+            except Exception:
+                pass
+            charging = "AC Power" in line or "charging" in line.lower()
+            break
+    return {"percent": percent, "charging": charging}

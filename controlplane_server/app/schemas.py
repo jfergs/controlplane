@@ -46,6 +46,17 @@ class NetIOInfo(BaseModel):
     bytes_recv: int | None
 
 
+class WiFiInfo(BaseModel):
+    ssid: str | None
+    rssi_dbm: int | None
+    noise_dbm: int | None
+
+
+class BatteryInfo(BaseModel):
+    percent: float | None
+    charging: bool | None
+
+
 class StatusResponse(BaseModel):
     host: str
     os: str
@@ -56,6 +67,8 @@ class StatusResponse(BaseModel):
     memory: MemoryInfo
     load_avg: LoadInfo
     net_io: NetIOInfo
+    wifi: WiFiInfo | None = None
+    battery: BatteryInfo | None = None
     warnings: list[str]
 
     model_config = ConfigDict(
