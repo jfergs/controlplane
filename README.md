@@ -3,27 +3,36 @@
 ControlPlane is a lightweight FastAPI-based control plane for monitoring and
 controlled automation in macOS and Raspberry Pi home lab environments.
 
-## API
+## Install (Python host)
 
-- `GET /api/status` (requires `Authorization: Bearer <CONTROLPLANE_TOKEN>`) returns host info,
-  disk usage, CPU temp (when available), memory stats, load average, and network I/O counters.
-
-## Setup
+Requires Python 3.12+. On Raspberry Pi or macOS:
 
 ```bash
+git clone https://github.com/jfergs/controlplane.git
+cd controlplane
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
 python -m pip install -e .[dev]
+export CONTROLPLANE_TOKEN="your-long-token"
+LOG_LEVEL=info python -m uvicorn controlplane_server.app.main:app --host 0.0.0.0 --port 8000
 ```
 
-## Running
+Use `just serve` if you already have the venv active.
 
-Set an API token the server will enforce on protected endpoints:
+## Install (Docker / Compose)
+
+Build and run locally (requires `docker`):
 
 ```bash
-export CONTROLPLANE_TOKEN="your-long-token"
-just serve
+just docker-build
+CONTROLPLANE_TOKEN=your-long-token just docker-run
+```
+
+Compose option:
+
+```bash
+CONTROLPLANE_TOKEN=your-long-token docker compose up --build
 ```
 
 ## Tests and linting
@@ -33,15 +42,14 @@ just test     # pytest
 just fmt      # ruff format + fix
 ```
 
-## Docker
+## API / Endpoints
 
-Build and run (expects `CONTROLPLANE_TOKEN` in your env):
-
-```bash
-just docker-build
-CONTROLPLANE_TOKEN=your-long-token just docker-run
-CONTROLPLANE_TOKEN=your-long-token docker compose up --build
-```
+- `GET /` — service info
+- `GET /health` — liveness
+- `GET /api/status` (requires `Authorization: Bearer <CONTROLPLANE_TOKEN>`) — host/os/python,
+  uptime, disk, CPU temp (if available), memory, load avg, net I/O, Wi-Fi (macOS/Linux), battery
+  (macOS/Linux), warnings, thresholds applied
+- `GET /metrics` — Prometheus metrics
 
 ## CLI
 
