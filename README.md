@@ -71,6 +71,12 @@ python -m controlplane_cli token-set --token "$CONTROLPLANE_TOKEN"
 - Logging: set `LOG_LEVEL` (default `INFO`); logs emit JSON lines.
 - Metrics: Prometheus endpoint exposed at `/metrics` when the server is running, including load/memory/disk plus Wi-Fi and battery details on macOS/Linux when available (fields are `None` if not supported). Request metrics are exported with path/status labels.
 
+## Security / deployment
+
+- Keep the API behind TLS (reverse proxy such as nginx/Caddy/Traefik) and restrict exposure to trusted networks.
+- The bearer token protects `/api/status`, `/api/push-status`, and `/api/endpoints*`; rotate it as needed and restart the server/agents.
+- CORS is off by default; enable only for trusted origins if exposing the dashboard across domains.
+- Rate limiting is not enabled; consider adding it at the proxy (e.g., nginx limit_req) for internet-facing deployments.
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) runs ruff and pytest on push/PR to main.
