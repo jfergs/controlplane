@@ -28,6 +28,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Output raw JSON instead of a human-friendly summary",
     )
     parser.add_argument("--timeout", type=float, default=5.0, help="Request timeout in seconds")
+    parser.add_argument(
+        "--fail-on-warnings",
+        action="store_true",
+        help="Exit with status 2 if the response contains warnings",
+    )
     return parser.parse_args(argv)
 
 
@@ -68,6 +73,11 @@ def _print_summary(data: dict) -> None:
         )
     )
     print(f"CPU temp (C): {data.get('cpu_temp_c')}")
+    warnings = data.get("warnings") or []
+    if warnings:
+        print("Warnings:")
+        for w in warnings:
+            print(f"- {w}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -98,6 +108,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(data, indent=2))
     else:
         _print_summary(data)
+    if args.fail_on_warnings and data.get("warnings"):
+        return 2
     return 0
 
 

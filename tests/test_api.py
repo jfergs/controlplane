@@ -9,6 +9,12 @@ from controlplane_server.app.main import create_app
 @pytest.fixture()
 def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("CONTROLPLANE_TOKEN", "secret-token")
+    # Relax thresholds to avoid warnings in test environments.
+    monkeypatch.setenv("CONTROLPLANE_DISK_FREE_GB_WARN", "-1")
+    monkeypatch.setenv("CONTROLPLANE_MEM_PERCENT_WARN", "200")
+    monkeypatch.setenv("CONTROLPLANE_LOAD_1M_WARN", "999")
+    monkeypatch.setenv("CONTROLPLANE_LOAD_5M_WARN", "999")
+    monkeypatch.setenv("CONTROLPLANE_LOAD_15M_WARN", "999")
     return TestClient(create_app())
 
 
@@ -54,3 +60,4 @@ def test_status_succeeds_with_token(client: TestClient) -> None:
     assert set(net_io) == {"bytes_sent", "bytes_recv"}
     for value in net_io.values():
         assert value is None or isinstance(value, int | float)
+    assert isinstance(data["warnings"], list)

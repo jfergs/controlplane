@@ -51,3 +51,8 @@ Use the CLI to hit `/api/status` with your token from Keychain:
 python -m controlplane_cli --url http://localhost:8000 --account "$(whoami)"
 python -m controlplane_cli --json   # JSON output
 ```
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs ruff and pytest on push/PR to main.
+Tag builds also publish a Docker image to GHCR at `ghcr.io/<org>/<repo>/controlplane:<tag>`.

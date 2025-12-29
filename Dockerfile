@@ -19,8 +19,14 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-compile --upgrade pip && \
     pip install --no-compile .
 
+RUN addgroup --system app && adduser --system --ingroup app app \
+    && chown -R app:app /app
+
+USER app
+
 EXPOSE 8000
 
 ENV CONTROLPLANE_TOKEN=""
+ENV LOG_LEVEL="info"
 
-CMD ["uvicorn", "controlplane_server.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "controlplane_server.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
