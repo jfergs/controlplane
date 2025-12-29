@@ -76,7 +76,8 @@ python -m controlplane_cli token-set --token "$CONTROLPLANE_TOKEN"
 - Keep the API behind TLS (reverse proxy such as nginx/Caddy/Traefik) and restrict exposure to trusted networks.
 - The bearer token protects `/api/status`, `/api/push-status`, and `/api/endpoints*`; rotate it as needed and restart the server/agents.
 - CORS is off by default; enable only for trusted origins if exposing the dashboard across domains.
-- Rate limiting is not enabled; consider adding it at the proxy (e.g., nginx limit_req) for internet-facing deployments.
+- Rate limiting (per-client, best-effort) can be enabled via `CONTROLPLANE_RATE_LIMIT` (e.g., `100/min`). Consider enforcing limits at the reverse proxy, too.
+- Database path can be overridden with `CONTROLPLANE_DB_PATH`; endpoint retention (in seconds) via `CONTROLPLANE_ENDPOINT_RETENTION_SEC`.
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) runs ruff and pytest on push/PR to main.
