@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from .config import APP_NAME
 from .schemas import EndpointList, EndpointStatus, HealthResponse, RootResponse, StatusResponse
 from .security import require_token
+from .storage import get_endpoint, list_endpoints_db, save_endpoint
 from .system import status_payload
 
 router = APIRouter()
@@ -58,14 +59,23 @@ async def push_status(request: Request, authorization: str | None = Header(defau
         last_seen=now,
         **payload,
     )
-    _endpoint_store[eid] = data
+    save_endpoint(data)
     return data
 
 
 @router.get("/api/endpoints", response_model=EndpointList, summary="List pushed endpoints")
 def list_endpoints(authorization: str | None = Header(default=None)):
     require_token(authorization)
-    return EndpointList(endpoints=list(_endpoint_store.values()))
+    return EndpointList(endpoints=list(list_endpoints_db()))
+
+
+@router.get("/api/endpoints/{endpoint_id}", response_model=EndpointStatus, summary="Get endpoint")
+def get_endpoint_status(endpoint_id: str, authorization: str | None = Header(default=None)):
+    require_token(authorization)
+    status = get_endpoint(endpoint_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Endpoint not found")
+    return status
 
 
 @router.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
