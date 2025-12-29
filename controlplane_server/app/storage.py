@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from collections.abc import Iterable
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from .schemas import EndpointStatus
 
-DB_PATH = Path(".controlplane.db")
+DB_PATH = Path(os.environ.get("CONTROLPLANE_DB_PATH", ".controlplane.db"))
+RETENTION_SEC = os.environ.get("CONTROLPLANE_ENDPOINT_RETENTION_SEC")
 
 
 @contextmanager
@@ -45,8 +48,25 @@ def init_db() -> None:
         conn.commit()
 
 
+def cleanup_retention() -> None:
+    if not RETENTION_SEC:
+        return
+    try:
+        retention_seconds = int(RETENTION_SEC)
+    except Exception:
+        return
+    cutoff = datetime.now(UTC) - timedelta(seconds=retention_seconds)
+    with _conn() as conn:
+        conn.execute(
+            "DELETE FROM endpoints WHERE last_seen IS NOT NULL AND last_seen < ?",
+            (cutoff.isoformat(),),
+        )
+        conn.commit()
+
+
 def save_endpoint(status: EndpointStatus) -> None:
     init_db()
+    cleanup_retention()
     with _conn() as conn:
         conn.execute(
             """
@@ -128,6 +148,7 @@ def _row_to_status(row: tuple) -> EndpointStatus:
 
 def list_endpoints_db() -> Iterable[EndpointStatus]:
     init_db()
+    cleanup_retention()
     with _conn() as conn:
         cur = conn.execute(
             "SELECT endpoint_id, host, os, python, uptime_sec, disk_root, cpu_temp_c, "
@@ -139,6 +160,7 @@ def list_endpoints_db() -> Iterable[EndpointStatus]:
 
 def get_endpoint(endpoint_id: str) -> EndpointStatus | None:
     init_db()
+    cleanup_retention()
     with _conn() as conn:
         cur = conn.execute(
             "SELECT endpoint_id, host, os, python, uptime_sec, disk_root, cpu_temp_c, "
