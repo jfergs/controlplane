@@ -372,11 +372,38 @@ source ~/.controlplane-agent/bin/activate
 python -m pip install -U pip
 python -m pip install psutil requests
 
+mkdir -p ~/.controlplane-agent
+cat > ~/.controlplane-agent/config.json <<'JSON'
+{
+  "server": "${base}",
+  "token": "${token}",
+  "interval_sec": ${interval},
+  "backoff_sec": ${backoff},
+  "max_backoff_sec": ${maxBackoff}
+}
+JSON
+
 cat > ~/controlplane-agent.py <<'PY'
 import json, platform, time, requests, os
 import psutil
-server=os.environ.get("CP_SERVER")
-token=os.environ.get("CP_TOKEN")
+CONFIG_PATH=os.path.expanduser("~/.controlplane-agent/config.json")
+
+def load_config():
+    cfg = {
+        "server": os.environ.get("CP_SERVER"),
+        "token": os.environ.get("CP_TOKEN"),
+        "interval_sec": ${interval},
+        "backoff_sec": ${backoff},
+        "max_backoff_sec": ${maxBackoff},
+    }
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as fh:
+            loaded = json.load(fh)
+            cfg.update({k: v for k, v in loaded.items() if v is not None})
+    except Exception:
+        pass
+    return cfg
+
 def payload():
     load1, load5, load15 = (0,0,0)
     try: load1, load5, load15 = os.getloadavg()
@@ -401,8 +428,16 @@ def payload():
         "warnings": [],
     }
 def post_loop():
-    global backoff
     while True:
+        cfg = load_config()
+        server = cfg.get("server")
+        token = cfg.get("token")
+        interval_sec = cfg.get("interval_sec", ${interval})
+        backoff_sec = cfg.get("backoff_sec", ${backoff})
+        max_bk = cfg.get("max_backoff_sec", ${maxBackoff})
+        if not server or not token:
+            time.sleep(backoff_sec)
+            continue
         try:
             requests.post(
                 f"{server}/api/push-status",
@@ -410,11 +445,10 @@ def post_loop():
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=10,
             )
-            time.sleep(interval)
-            backoff = ${backoff}
+            time.sleep(interval_sec)
         except Exception:
-            time.sleep(backoff)
-            backoff = min(backoff * 2, ${maxBackoff})
+            time.sleep(backoff_sec)
+            backoff_sec = min(backoff_sec * 2, max_bk)
 
 post_loop()
 PY
@@ -429,7 +463,7 @@ cat > ~/Library/LaunchAgents/com.controlplane.agent.plist <<'PLIST'
   <array>
     <string>/bin/bash</string>
     <string>-c</string>
-    <string>source ~/.controlplane-agent/bin/activate && CP_SERVER=${server} CP_TOKEN=${token} python ~/controlplane-agent.py</string>
+    <string>source ~/.controlplane-agent/bin/activate && python ~/controlplane-agent.py</string>
   </array>
   <key>RunAtLoad</key><true/>
   <key>StandardOutPath</key><string>/tmp/controlplane-agent.log</string>
@@ -450,15 +484,25 @@ python -m venv %USERPROFILE%\\controlplane-agent
 call %USERPROFILE%\\controlplane-agent\\Scripts\\activate
 python -m pip install -U pip
 python -m pip install psutil requests
+echo { > %USERPROFILE%\\controlplane-agent\\config.json
+echo   "server": "%SERVER%", >> %USERPROFILE%\\controlplane-agent\\config.json
+echo   "token": "%TOKEN%", >> %USERPROFILE%\\controlplane-agent\\config.json
+echo   "interval_sec": ${interval}, >> %USERPROFILE%\\controlplane-agent\\config.json
+echo   "backoff_sec": ${backoff}, >> %USERPROFILE%\\controlplane-agent\\config.json
+echo   "max_backoff_sec": ${maxBackoff} >> %USERPROFILE%\\controlplane-agent\\config.json
+echo } >> %USERPROFILE%\\controlplane-agent\\config.json
 echo import json, platform, time, requests, os > %USERPROFILE%\\controlplane-agent.py
 echo import psutil >> %USERPROFILE%\\controlplane-agent.py
-echo server=os.environ.get('SERVER') >> %USERPROFILE%\\controlplane-agent.py
-echo token=os.environ.get('TOKEN') >> %USERPROFILE%\\controlplane-agent.py
-echo import os >> %USERPROFILE%\\controlplane-agent.py
-echo import psutil >> %USERPROFILE%\\controlplane-agent.py
-echo import time >> %USERPROFILE%\\controlplane-agent.py
-echo import platform >> %USERPROFILE%\\controlplane-agent.py
-echo import requests >> %USERPROFILE%\\controlplane-agent.py
+echo CONFIG_PATH=os.path.expanduser("%USERPROFILE%\\controlplane-agent\\config.json") >> %USERPROFILE%\\controlplane-agent.py
+echo def load_config(): >> %USERPROFILE%\\controlplane-agent.py
+echo ^    cfg={"server": os.environ.get('SERVER'), "token": os.environ.get('TOKEN'), "interval_sec": ${interval}, "backoff_sec": ${backoff}, "max_backoff_sec": ${maxBackoff}} >> %USERPROFILE%\\controlplane-agent.py
+echo ^    try: >> %USERPROFILE%\\controlplane-agent.py
+echo ^        with open(CONFIG_PATH, "r", encoding="utf-8") as fh: >> %USERPROFILE%\\controlplane-agent.py
+echo ^            import json >> %USERPROFILE%\\controlplane-agent.py
+echo ^            cfg.update(json.load(fh)) >> %USERPROFILE%\\controlplane-agent.py
+echo ^    except Exception: >> %USERPROFILE%\\controlplane-agent.py
+echo ^        pass >> %USERPROFILE%\\controlplane-agent.py
+echo ^    return cfg >> %USERPROFILE%\\controlplane-agent.py
 echo def payload(): >> %USERPROFILE%\\controlplane-agent.py
 echo ^    load1,load5,load15=(0,0,0) >> %USERPROFILE%\\controlplane-agent.py
 echo ^    try: load1,load5,load15=os.getloadavg() >> %USERPROFILE%\\controlplane-agent.py
@@ -478,22 +522,26 @@ echo ^        "wifi": {"ssid": None, "rssi_dbm": None, "noise_dbm": None}, >> %U
 echo ^        "battery": {"percent": None, "charging": None}, >> %USERPROFILE%\\controlplane-agent.py
 echo ^        "warnings": [], >> %USERPROFILE%\\controlplane-agent.py
 echo ^    } >> %USERPROFILE%\\controlplane-agent.py
-echo backoff=${backoff} >> %USERPROFILE%\\controlplane-agent.py
-echo max_backoff=${maxBackoff} >> %USERPROFILE%\\controlplane-agent.py
-echo interval=${interval} >> %USERPROFILE%\\controlplane-agent.py
 echo def post_loop(): >> %USERPROFILE%\\controlplane-agent.py
-echo ^    global backoff >> %USERPROFILE%\\controlplane-agent.py
 echo ^    while True: >> %USERPROFILE%\\controlplane-agent.py
+echo ^        cfg=load_config() >> %USERPROFILE%\\controlplane-agent.py
+echo ^        server=cfg.get("server") >> %USERPROFILE%\\controlplane-agent.py
+echo ^        token=cfg.get("token") >> %USERPROFILE%\\controlplane-agent.py
+echo ^        interval_sec=cfg.get("interval_sec", ${interval}) >> %USERPROFILE%\\controlplane-agent.py
+echo ^        backoff_sec=cfg.get("backoff_sec", ${backoff}) >> %USERPROFILE%\\controlplane-agent.py
+echo ^        max_bk=cfg.get("max_backoff_sec", ${maxBackoff}) >> %USERPROFILE%\\controlplane-agent.py
+echo ^        if not server or not token: >> %USERPROFILE%\\controlplane-agent.py
+echo ^            time.sleep(backoff_sec) >> %USERPROFILE%\\controlplane-agent.py
+echo ^            continue >> %USERPROFILE%\\controlplane-agent.py
 echo ^        try: >> %USERPROFILE%\\controlplane-agent.py
 echo ^            requests.post(f"{SERVER}/api/push-status", json=payload(), headers={"Authorization": f"Bearer {TOKEN}"}, timeout=10) >> %USERPROFILE%\\controlplane-agent.py
-echo ^            time.sleep(interval) >> %USERPROFILE%\\controlplane-agent.py
-echo ^            backoff=${backoff} >> %USERPROFILE%\\controlplane-agent.py
+echo ^            time.sleep(interval_sec) >> %USERPROFILE%\\controlplane-agent.py
 echo ^        except Exception: >> %USERPROFILE%\\controlplane-agent.py
-echo ^            time.sleep(backoff) >> %USERPROFILE%\\controlplane-agent.py
-echo ^            backoff = min(backoff * 2, max_backoff) >> %USERPROFILE%\\controlplane-agent.py
+echo ^            time.sleep(backoff_sec) >> %USERPROFILE%\\controlplane-agent.py
+echo ^            backoff_sec=min(backoff_sec*2, max_bk) >> %USERPROFILE%\\controlplane-agent.py
 echo post_loop() >> %USERPROFILE%\\controlplane-agent.py
 
-schtasks /Create /TN "ControlPlaneAgent" /TR "cmd /c set SERVER=%SERVER%^^&^& set TOKEN=%TOKEN%^^&^& call %USERPROFILE%\\controlplane-agent\\Scripts\\activate ^^&^^& python %USERPROFILE%\\controlplane-agent.py" /SC ONLOGON /RL HIGHEST /F
+schtasks /Create /TN "ControlPlaneAgent" /TR "cmd /c call %USERPROFILE%\\controlplane-agent\\Scripts\\activate ^^&^^& python %USERPROFILE%\\controlplane-agent.py" /SC ONLOGON /RL HIGHEST /F
 schtasks /Run /TN "ControlPlaneAgent"
 echo Agent installed and scheduled.
 `;
