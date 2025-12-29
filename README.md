@@ -49,7 +49,9 @@ Use the CLI to hit `/api/status` with your token from Keychain:
 
 ```bash
 python -m controlplane_cli --url http://localhost:8000 --account "$(whoami)"
-python -m controlplane_cli --json   # JSON output
+python -m controlplane_cli --json            # JSON output
+python -m controlplane_cli --watch --interval 10 --fail-on-warnings
+python -m controlplane_cli token-set --token "$CONTROLPLANE_TOKEN"
 ```
 
 ## CI

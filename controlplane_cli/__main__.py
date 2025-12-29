@@ -4,14 +4,15 @@ import argparse
 import getpass
 import json
 import sys
+import time
 
 import httpx
 
-from .keychain import get_token
+from .keychain import get_token, set_token
 
 
-def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="ControlPlane CLI")
+def _status_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="ControlPlane CLI (status)")
     parser.add_argument(
         "--url",
         default="http://localhost:8000",
@@ -33,6 +34,38 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Exit with status 2 if the response contains warnings",
     )
+    parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="Continuously poll the status endpoint until interrupted",
+    )
+    parser.add_argument(
+        "--interval", type=float, default=5.0, help="Seconds between polls when using --watch"
+    )
+    return parser
+
+
+def _token_set_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Store CONTROLPLANE_TOKEN in Keychain")
+    parser.add_argument(
+        "--account",
+        default=getpass.getuser(),
+        help="Keychain account name (default: current user)",
+    )
+    parser.add_argument(
+        "--token",
+        help="Token value to store; if omitted, you will be prompted",
+    )
+    return parser
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    if argv and argv[0] == "token-set":
+        parser = _token_set_parser()
+        parser.set_defaults(command="token-set")
+        return parser.parse_args(argv[1:])
+    parser = _status_parser()
+    parser.set_defaults(command="status")
     return parser.parse_args(argv)
 
 
@@ -80,8 +113,7 @@ def _print_summary(data: dict) -> None:
             print(f"- {w}")
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv or sys.argv[1:])
+def _status_once(args: argparse.Namespace) -> int:
     try:
         token = get_token(args.account)
     except RuntimeError as exc:
@@ -111,6 +143,37 @@ def main(argv: list[str] | None = None) -> int:
     if args.fail_on_warnings and data.get("warnings"):
         return 2
     return 0
+
+
+def _watch_status(args: argparse.Namespace) -> int:
+    try:
+        while True:
+            code = _status_once(args)
+            if code != 0:
+                return code
+            if not args.watch:
+                return code
+            time.sleep(args.interval)
+    except KeyboardInterrupt:
+        return 0
+
+
+def _handle_token_set(args: argparse.Namespace) -> int:
+    token = args.token or getpass.getpass("CONTROLPLANE_TOKEN: ")
+    try:
+        set_token(args.account, token)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print("Token stored in Keychain.")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv or sys.argv[1:])
+    if getattr(args, "command", "status") == "token-set":
+        return _handle_token_set(args)
+    return _watch_status(args)
 
 
 if __name__ == "__main__":
