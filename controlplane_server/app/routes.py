@@ -1,16 +1,24 @@
 from __future__ import annotations
 
+# ruff: noqa: E501
 import platform
+import re
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from .config import APP_NAME
-from .schemas import HealthResponse, RootResponse, StatusResponse
+from .schemas import EndpointList, EndpointStatus, HealthResponse, RootResponse, StatusResponse
 from .security import require_token
 from .system import status_payload
 
 router = APIRouter()
+_endpoint_store: dict[str, EndpointStatus] = {}
+
+
+def _slugify(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "endpoint"
 
 
 @router.get("/", response_model=RootResponse, summary="Service info")
@@ -33,6 +41,31 @@ def status(authorization: str | None = Header(default=None)):
         python=platform.python_version(),
         **metrics,
     )
+
+
+@router.post(
+    "/api/push-status", response_model=EndpointStatus, summary="Push remote endpoint status"
+)
+async def push_status(request: Request, authorization: str | None = Header(default=None)):
+    require_token(authorization)
+    payload = await request.json()
+    if "host" not in payload:
+        raise HTTPException(status_code=400, detail="Missing host in payload")
+    eid = _slugify(payload.get("host", "endpoint"))
+    now = datetime.now(UTC).isoformat()
+    data = EndpointStatus(
+        endpoint_id=eid,
+        last_seen=now,
+        **payload,
+    )
+    _endpoint_store[eid] = data
+    return data
+
+
+@router.get("/api/endpoints", response_model=EndpointList, summary="List pushed endpoints")
+def list_endpoints(authorization: str | None = Header(default=None)):
+    require_token(authorization)
+    return EndpointList(endpoints=list(_endpoint_store.values()))
 
 
 @router.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
@@ -155,6 +188,22 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
   <main>
     <div class="grid" id="stats-grid"></div>
     <div class="card alt">
+      <h3>Endpoints (pushed)</h3>
+      <div id="endpoints" class="muted">Loading…</div>
+    </div>
+    <div class="card">
+      <h3>Onboarding</h3>
+      <p class="muted">Generate install scripts for macOS or Windows endpoints. They install dependencies, collect metrics, and POST to this server with the bearer token.</p>
+      <div class="controls" style="padding:8px 0;">
+        <select id="os-select" style="padding: 10px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px;">
+          <option value="macos">macOS (bash)</option>
+          <option value="windows">Windows (PowerShell)</option>
+        </select>
+        <button id="copy-script">Copy script</button>
+      </div>
+      <pre id="script" style="white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--panel); padding: 12px; border-radius: 10px; border: 1px solid var(--border);"></pre>
+    </div>
+    <div class="card alt">
       <h3>Warnings</h3>
       <ul class="warnings" id="warnings"></ul>
     </div>
@@ -172,6 +221,10 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
     const intervalInput = document.getElementById("interval");
     const refreshBtn = document.getElementById("refresh");
     const saveBtn = document.getElementById("save");
+    const endpointsDiv = document.getElementById("endpoints");
+    const scriptPre = document.getElementById("script");
+    const copyBtn = document.getElementById("copy-script");
+    const osSelect = document.getElementById("os-select");
 
     const defaultUrl = window.location.origin;
     urlInput.value = localStorage.getItem("cp_url") || defaultUrl;
@@ -192,6 +245,7 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
       const secs = Math.max(2, parseInt(intervalInput.value || "5", 10));
       timer = setInterval(fetchStatus, secs * 1000);
       fetchStatus();
+      fetchEndpoints();
     }
 
     async function fetchStatus() {
@@ -264,8 +318,169 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
         : "<li class='muted'>None</li>";
     }
 
+    async function fetchEndpoints() {
+      const token = tokenInput.value.trim();
+      const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
+      try {
+        const resp = await fetch(base + "/api/endpoints", {
+          headers: { Authorization: "Bearer " + token },
+        });
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const data = await resp.json();
+        if (!data.endpoints || data.endpoints.length === 0) {
+          endpointsDiv.innerHTML = "No endpoints pushed yet.";
+          return;
+        }
+        endpointsDiv.innerHTML = data.endpoints
+          .map(
+            (e) =>
+              `<div class="row"><span>${e.endpoint_id}</span><span class="muted">${e.last_seen}</span></div>`
+          )
+          .join("");
+      } catch (err) {
+        endpointsDiv.innerHTML = "Error loading endpoints: " + err;
+      }
+    }
+
+    function generateScript() {
+      const token = tokenInput.value.trim();
+      const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
+      if (osSelect.value === "macos") {
+        return `#!/usr/bin/env bash
+set -e
+token="${token}"
+server="${base}"
+
+python3 -m venv ~/.controlplane-agent
+source ~/.controlplane-agent/bin/activate
+python -m pip install -U pip
+python -m pip install psutil requests
+
+cat > ~/controlplane-agent.py <<'PY'
+import json, platform, time, requests, os
+import psutil
+server=os.environ.get("CP_SERVER")
+token=os.environ.get("CP_TOKEN")
+def payload():
+    load1, load5, load15 = (0,0,0)
+    try: load1, load5, load15 = os.getloadavg()
+    except Exception: pass
+    mem = psutil.virtual_memory()
+    return {
+        "host": platform.node(),
+        "os": platform.platform(),
+        "python": platform.python_version(),
+        "uptime_sec": int(time.time() - psutil.boot_time()),
+        "disk_root": {
+            "total_gb": round(psutil.disk_usage('/').total/1024**3,2),
+            "used_gb": round(psutil.disk_usage('/').used/1024**3,2),
+            "free_gb": round(psutil.disk_usage('/').free/1024**3,2),
+        },
+        "cpu_temp_c": None,
+        "memory": {"total_gb": round(mem.total/1024**3,2), "available_gb": round(mem.available/1024**3,2), "percent": round(mem.percent,2)},
+        "load_avg": {"1m": round(load1,2), "5m": round(load5,2), "15m": round(load15,2)},
+        "net_io": {"bytes_sent": psutil.net_io_counters().bytes_sent, "bytes_recv": psutil.net_io_counters().bytes_recv},
+        "wifi": {"ssid": None, "rssi_dbm": None, "noise_dbm": None},
+        "battery": {"percent": None, "charging": None},
+        "warnings": [],
+    }
+while True:
+    try:
+        requests.post(f"{server}/api/push-status", json=payload(), headers={"Authorization": f"Bearer {token}"}, timeout=5)
+    except Exception:
+        pass
+    time.sleep(30)
+PY
+
+cat > ~/Library/LaunchAgents/com.controlplane.agent.plist <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.controlplane.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-c</string>
+    <string>source ~/.controlplane-agent/bin/activate && CP_SERVER=${server} CP_TOKEN=${token} python ~/controlplane-agent.py</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/tmp/controlplane-agent.log</string>
+  <key>StandardErrorPath</key><string>/tmp/controlplane-agent.err</string>
+</dict>
+</plist>
+PLIST
+
+launchctl unload ~/Library/LaunchAgents/com.controlplane.agent.plist 2>/dev/null || true
+launchctl load ~/Library/LaunchAgents/com.controlplane.agent.plist
+echo "Agent installed and running."
+`;
+      }
+      return `@echo off
+set TOKEN=${token}
+set SERVER=${base}
+python -m venv %USERPROFILE%\\controlplane-agent
+call %USERPROFILE%\\controlplane-agent\\Scripts\\activate
+python -m pip install -U pip
+python -m pip install psutil requests
+echo import json, platform, time, requests, os > %USERPROFILE%\\controlplane-agent.py
+echo import psutil >> %USERPROFILE%\\controlplane-agent.py
+echo server=os.environ.get('SERVER') >> %USERPROFILE%\\controlplane-agent.py
+echo token=os.environ.get('TOKEN') >> %USERPROFILE%\\controlplane-agent.py
+echo import os >> %USERPROFILE%\\controlplane-agent.py
+echo import psutil >> %USERPROFILE%\\controlplane-agent.py
+echo import time >> %USERPROFILE%\\controlplane-agent.py
+echo import platform >> %USERPROFILE%\\controlplane-agent.py
+echo import requests >> %USERPROFILE%\\controlplane-agent.py
+echo def payload(): >> %USERPROFILE%\\controlplane-agent.py
+echo ^    load1,load5,load15=(0,0,0) >> %USERPROFILE%\\controlplane-agent.py
+echo ^    try: load1,load5,load15=os.getloadavg() >> %USERPROFILE%\\controlplane-agent.py
+echo ^    except Exception: pass >> %USERPROFILE%\\controlplane-agent.py
+echo ^    mem=psutil.virtual_memory() >> %USERPROFILE%\\controlplane-agent.py
+echo ^    return { >> %USERPROFILE%\\controlplane-agent.py
+echo ^        "host": platform.node(), >> %USERPROFILE%\\controlplane-agent.py
+echo ^        "os": platform.platform(), >> %USERPROFILE%\\controlplane-agent.py
+echo ^        "python": platform.python_version(), >> %USERPROFILE%\\controlplane-agent.py
+echo ^        "uptime_sec": int(time.time()-psutil.boot_time()), >> %USERPROFILE%\\controlplane-agent.py
+echo ^        "disk_root": {"total_gb": round(psutil.disk_usage('\\\\').total/1024**3,2), "used_gb": round(psutil.disk_usage('\\\\').used/1024**3,2), "free_gb": round(psutil.disk_usage('\\\\').free/1024**3,2)}, >> %USERPROFILE%\\controlplane-agent.py
+echo ^        "cpu_temp_c": None, >> %USERPROFILE%\\controlplane-agent.py
+echo ^        "memory": {"total_gb": round(mem.total/1024**3,2), "available_gb": round(mem.available/1024**3,2), "percent": round(mem.percent,2)}, >> %USERPROFILE%\\controlplane-agent.py
+echo ^        "load_avg": {"1m": round(load1,2), "5m": round(load5,2), "15m": round(load15,2)}, >> %USERPROFILE%\\controlplane-agent.py
+echo ^        "net_io": {"bytes_sent": psutil.net_io_counters().bytes_sent, "bytes_recv": psutil.net_io_counters().bytes_recv}, >> %USERPROFILE%\\controlplane-agent.py
+echo ^        "wifi": {"ssid": None, "rssi_dbm": None, "noise_dbm": None}, >> %USERPROFILE%\\controlplane-agent.py
+echo ^        "battery": {"percent": None, "charging": None}, >> %USERPROFILE%\\controlplane-agent.py
+echo ^        "warnings": [], >> %USERPROFILE%\\controlplane-agent.py
+echo ^    } >> %USERPROFILE%\\controlplane-agent.py
+echo while True: >> %USERPROFILE%\\controlplane-agent.py
+echo ^    try: >> %USERPROFILE%\\controlplane-agent.py
+echo ^        requests.post(f"{SERVER}/api/push-status", json=payload(), headers={"Authorization": f"Bearer {TOKEN}"}, timeout=5) >> %USERPROFILE%\\controlplane-agent.py
+echo ^    except Exception: >> %USERPROFILE%\\controlplane-agent.py
+echo ^        pass >> %USERPROFILE%\\controlplane-agent.py
+echo ^    time.sleep(30) >> %USERPROFILE%\\controlplane-agent.py
+
+schtasks /Create /TN "ControlPlaneAgent" /TR "cmd /c set SERVER=%SERVER%^^&^& set TOKEN=%TOKEN%^^&^& call %USERPROFILE%\\controlplane-agent\\Scripts\\activate ^^&^^& python %USERPROFILE%\\controlplane-agent.py" /SC ONLOGON /RL HIGHEST /F
+schtasks /Run /TN "ControlPlaneAgent"
+echo Agent installed and scheduled.
+`;
+    }
+
+    function refreshScript() {
+      scriptPre.textContent = generateScript();
+    }
+
+    copyBtn.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(scriptPre.textContent);
+      copyBtn.textContent = "Copied!";
+      setTimeout(() => (copyBtn.textContent = "Copy script"), 1200);
+    });
+
+    osSelect.addEventListener("change", refreshScript);
+    tokenInput.addEventListener("input", refreshScript);
+    urlInput.addEventListener("input", refreshScript);
+
     saveBtn.addEventListener("click", () => savePrefs());
     refreshBtn.addEventListener("click", fetchStatus);
+    refreshScript();
     schedule();
   </script>
 </body>

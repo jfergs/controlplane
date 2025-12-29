@@ -87,3 +87,12 @@ class StatusResponse(BaseModel):
             }
         }
     )
+
+
+class EndpointStatus(StatusResponse):
+    endpoint_id: str
+    last_seen: str
+
+
+class EndpointList(BaseModel):
+    endpoints: list[EndpointStatus]
