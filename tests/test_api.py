@@ -60,6 +60,6 @@ def test_status_succeeds_with_token(client: TestClient) -> None:
     assert set(net_io) == {"bytes_sent", "bytes_recv"}
     for value in net_io.values():
         assert value is None or isinstance(value, int | float)
-    assert "wifi" in data
-    assert "battery" in data
+    assert set(data["wifi"]) == {"ssid", "rssi_dbm", "noise_dbm"}
+    assert set(data["battery"]) == {"percent", "charging"}
     assert isinstance(data["warnings"], list)

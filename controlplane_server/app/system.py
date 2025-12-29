@@ -135,60 +135,100 @@ def status_payload() -> dict[str, Any]:
         "net_io": NetIOInfo(**network_io_counters()).model_dump(),
         "warnings": warnings,
     }
-    wifi = wifi_status()
-    if wifi:
-        metrics["wifi"] = wifi
-    battery = battery_status()
-    if battery:
-        metrics["battery"] = battery
+    metrics["wifi"] = wifi_status() or {"ssid": None, "rssi_dbm": None, "noise_dbm": None}
+    metrics["battery"] = battery_status() or {"percent": None, "charging": None}
     return metrics
 
 
 def wifi_status() -> dict[str, Any]:
-    """Return Wi-Fi SSID/RSSI/Noise on macOS if available."""
-    if platform.system() != "Darwin":
-        return {}
-    airport = (
-        "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
-    )
-    try:
-        out = subprocess.check_output([airport, "-I"], text=True)
-    except Exception:
-        return {}
-    ssid = rssi = noise = None
-    for line in out.splitlines():
-        if " SSID:" in line:
-            ssid = line.split("SSID:", 1)[1].strip()
-        elif "agrCtlRSSI" in line:
+    """Return Wi-Fi SSID/RSSI/Noise where available."""
+    system = platform.system()
+    if system == "Darwin":
+        airport = (
+            "/System/Library/PrivateFrameworks/Apple80211.framework/"
+            "Versions/Current/Resources/airport"
+        )
+        try:
+            out = subprocess.check_output([airport, "-I"], text=True)
+        except Exception:
+            return {}
+        ssid = rssi = noise = None
+        for line in out.splitlines():
+            if " SSID:" in line:
+                ssid = line.split("SSID:", 1)[1].strip()
+            elif "agrCtlRSSI" in line:
+                try:
+                    rssi = int(line.split(":", 1)[1].strip())
+                except Exception:
+                    pass
+            elif "agrCtlNoise" in line:
+                try:
+                    noise = int(line.split(":", 1)[1].strip())
+                except Exception:
+                    pass
+        return {"ssid": ssid, "rssi_dbm": rssi, "noise_dbm": noise}
+
+    if system == "Linux":
+        ssid = None
+        try:
+            ssid = subprocess.check_output(["iwgetid", "-r"], text=True).strip() or None
+        except Exception:
+            pass
+        try:
+            with open("/proc/net/wireless", encoding="utf-8") as f:
+                lines = f.read().splitlines()
+        except Exception:
+            return {}
+        # Find first interface line after headers
+        for line in lines[2:]:
+            if ":" not in line:
+                continue
+            parts = line.split()
             try:
-                rssi = int(line.split(":", 1)[1].strip())
+                rssi = int(float(parts[3]))
             except Exception:
-                pass
-        elif "agrCtlNoise" in line:
+                rssi = None
             try:
-                noise = int(line.split(":", 1)[1].strip())
+                noise = int(float(parts[4]))
             except Exception:
-                pass
-    return {"ssid": ssid, "rssi_dbm": rssi, "noise_dbm": noise}
+                noise = None
+            return {"ssid": ssid, "rssi_dbm": rssi, "noise_dbm": noise}
+    return {}
 
 
 def battery_status() -> dict[str, Any]:
-    """Return battery percentage/charging on macOS if available."""
-    if platform.system() != "Darwin":
-        return {}
-    try:
-        out = subprocess.check_output(["pmset", "-g", "batt"], text=True)
-    except Exception:
-        return {}
-    percent = None
-    charging = None
-    for line in out.splitlines():
-        if "%" in line:
-            try:
-                percent_str = line.split("%")[0].split()[-1]
-                percent = float(percent_str)
-            except Exception:
-                pass
-            charging = "AC Power" in line or "charging" in line.lower()
-            break
-    return {"percent": percent, "charging": charging}
+    """Return battery percentage/charging if available."""
+    system = platform.system()
+    if system == "Darwin":
+        try:
+            out = subprocess.check_output(["pmset", "-g", "batt"], text=True)
+        except Exception:
+            return {}
+        percent = None
+        charging = None
+        for line in out.splitlines():
+            if "%" in line:
+                try:
+                    percent_str = line.split("%")[0].split()[-1]
+                    percent = float(percent_str)
+                except Exception:
+                    pass
+                charging = "AC Power" in line or "charging" in line.lower()
+                break
+        return {"percent": percent, "charging": charging}
+
+    if system == "Linux":
+        base = Path("/sys/class/power_supply/BAT0")
+        try:
+            percent_str = (base / "capacity").read_text(encoding="utf-8").strip()
+            percent = float(percent_str)
+        except Exception:
+            percent = None
+        try:
+            status = (base / "status").read_text(encoding="utf-8").strip().lower()
+            charging = "charge" in status or "full" in status
+        except Exception:
+            charging = None
+        if percent is not None or charging is not None:
+            return {"percent": percent, "charging": charging}
+    return {}

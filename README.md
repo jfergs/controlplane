@@ -57,7 +57,7 @@ python -m controlplane_cli token-set --token "$CONTROLPLANE_TOKEN"
 ## Observability
 
 - Logging: set `LOG_LEVEL` (default `INFO`); logs emit JSON lines.
-- Metrics: Prometheus endpoint exposed at `/metrics` when the server is running, including load/memory/disk plus macOS Wi-Fi and battery details when available.
+- Metrics: Prometheus endpoint exposed at `/metrics` when the server is running, including load/memory/disk plus Wi-Fi and battery details on macOS/Linux when available (fields are `None` if not supported).
 
 ## CI
 
