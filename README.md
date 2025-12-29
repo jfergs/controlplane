@@ -54,6 +54,11 @@ python -m controlplane_cli --watch --interval 10 --fail-on-warnings
 python -m controlplane_cli token-set --token "$CONTROLPLANE_TOKEN"
 ```
 
+## Observability
+
+- Logging: set `LOG_LEVEL` (default `INFO`); logs emit JSON lines.
+- Metrics: Prometheus endpoint exposed at `/metrics` when the server is running.
+
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) runs ruff and pytest on push/PR to main.
