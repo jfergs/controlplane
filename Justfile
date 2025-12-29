@@ -15,3 +15,6 @@ docker-build:
 
 docker-run:
     docker run --rm -p 8000:8000 -e CONTROLPLANE_TOKEN=$CONTROLPLANE_TOKEN controlplane:latest
+
+compose:
+    docker compose up --build

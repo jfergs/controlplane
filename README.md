@@ -40,6 +40,7 @@ Build and run (expects `CONTROLPLANE_TOKEN` in your env):
 ```bash
 just docker-build
 CONTROLPLANE_TOKEN=your-long-token just docker-run
+CONTROLPLANE_TOKEN=your-long-token docker compose up --build
 ```
 
 ## CLI

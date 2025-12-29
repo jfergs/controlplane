@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  controlplane:
+    build:
+      context: .
+    image: controlplane:latest
+    ports:
+      - "8000:8000"
+    environment:
+      CONTROLPLANE_TOKEN: ${CONTROLPLANE_TOKEN:?set CONTROLPLANE_TOKEN}
+    restart: unless-stopped
