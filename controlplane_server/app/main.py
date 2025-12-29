@@ -1,17 +1,29 @@
 from __future__ import annotations
 
+import os
 import platform
 import shutil
 import subprocess
 import time
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 
-app = FastAPI(title="ControlPlane", version="0.2.0")
+app = FastAPI(title="ControlPlane", version="0.3.0")
+
+API_TOKEN = os.environ.get("CONTROLPLANE_TOKEN", "")
+
+
+def require_token(authorization: str | None) -> None:
+    if not API_TOKEN:
+        raise HTTPException(status_code=500, detail="Server missing CONTROLPLANE_TOKEN")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = authorization.split(" ", 1)[1]
+    if token != API_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid token")
 
 
 def _run(cmd: list[str]) -> str:
-    """Run a command and return stdout (best-effort)."""
     try:
         return subprocess.check_output(cmd, text=True).strip()
     except Exception:
@@ -19,10 +31,8 @@ def _run(cmd: list[str]) -> str:
 
 
 def _uptime_seconds() -> int:
-    # macOS: sysctl kern.boottime gives boot time
     if platform.system() == "Darwin":
         out = _run(["sysctl", "-n", "kern.boottime"])
-        # Example: { sec = 1703860000, usec = 0 } ...
         if "sec" in out:
             try:
                 sec_part = out.split("sec =")[1].split(",")[0].strip()
@@ -30,7 +40,6 @@ def _uptime_seconds() -> int:
                 return int(time.time() - boot)
             except Exception:
                 pass
-    # Linux: read /proc/uptime
     try:
         with open("/proc/uptime", encoding="utf-8") as f:
             return int(float(f.read().split()[0]))
@@ -39,7 +48,6 @@ def _uptime_seconds() -> int:
 
 
 def _cpu_temp_c() -> float | None:
-    # Raspberry Pi / many Linux: thermal zone
     for path in ("/sys/class/thermal/thermal_zone0/temp",):
         try:
             with open(path, encoding="utf-8") as f:
@@ -61,7 +69,8 @@ def health():
 
 
 @app.get("/api/status")
-def status():
+def status(authorization: str | None = Header(default=None)):
+    require_token(authorization)
     total, used, free = shutil.disk_usage("/")
     return {
         "host": platform.node(),
