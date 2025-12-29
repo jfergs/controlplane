@@ -236,6 +236,9 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
     <div class="grid" id="stats-grid"></div>
     <div class="card alt">
       <h3>Endpoints (pushed)</h3>
+      <div class="controls" style="padding:6px 0; gap:6px;">
+        <button id="refresh-endpoints">Refresh endpoints</button>
+      </div>
       <div id="endpoints" class="muted">Loading…</div>
     </div>
     <div class="card">
@@ -253,7 +256,7 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
     </div>
     <div class="card">
       <h3>Endpoint Detail</h3>
-      <div class="muted">Select "View" on an endpoint to load details here.</div>
+      <div id="endpoint-detail-header" class="muted">Select "View" on an endpoint to load details here.</div>
       <pre id="endpoint-detail" style="white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--panel); padding: 12px; border-radius: 10px; border: 1px solid var(--border);"></pre>
     </div>
     <div class="card alt">
@@ -280,6 +283,8 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
     const copyUninstallBtn = document.getElementById("copy-uninstall");
     const osSelect = document.getElementById("os-select");
     const endpointDetail = document.getElementById("endpoint-detail");
+    const endpointDetailHeader = document.getElementById("endpoint-detail-header");
+    const refreshEndpointsBtn = document.getElementById("refresh-endpoints");
 
     const defaultUrl = window.location.origin;
     urlInput.value = localStorage.getItem("cp_url") || defaultUrl;
@@ -386,10 +391,13 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
           endpointsDiv.innerHTML = "No endpoints pushed yet.";
           return;
         }
-        const health = summarizeHealth(data.endpoints);
+        const sorted = [...data.endpoints].sort((a, b) =>
+          (b.last_seen || "").localeCompare(a.last_seen || "")
+        );
+        const health = summarizeHealth(sorted);
         endpointsDiv.innerHTML = `
           <div class="muted">Active: ${health.active} • Stale: ${health.stale} • Total: ${data.endpoints.length}</div>
-          ${data.endpoints
+          ${sorted
             .map((e) => {
               const age = timeAgo(e.last_seen);
               const stale = isStale(e.last_seen);
@@ -442,9 +450,11 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
         const data = await resp.json();
         raw.textContent = JSON.stringify(data, null, 2);
         endpointDetail.textContent = JSON.stringify(data, null, 2);
+        endpointDetailHeader.textContent = `${data.endpoint_id} • ${timeAgo(data.last_seen)}${isStale(data.last_seen) ? " • stale" : ""}`;
       } catch (err) {
         raw.textContent = "Error loading endpoint: " + err;
         endpointDetail.textContent = "";
+        endpointDetailHeader.textContent = "Error loading endpoint.";
       }
     };
 
@@ -708,6 +718,7 @@ echo ControlPlane agent removed.
 
     saveBtn.addEventListener("click", () => savePrefs());
     refreshBtn.addEventListener("click", fetchStatus);
+    refreshEndpointsBtn.addEventListener("click", fetchEndpoints);
     refreshScript();
     schedule();
   </script>
