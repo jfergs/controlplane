@@ -9,7 +9,14 @@ from fastapi import APIRouter, Header, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 
 from .config import APP_NAME
-from .schemas import EndpointList, EndpointStatus, HealthResponse, RootResponse, StatusResponse
+from .schemas import (
+    EndpointHealth,
+    EndpointList,
+    EndpointStatus,
+    HealthResponse,
+    RootResponse,
+    StatusResponse,
+)
 from .security import require_token
 from .storage import delete_endpoint, get_endpoint, list_endpoints_db, save_endpoint
 from .system import status_payload
@@ -76,6 +83,26 @@ def get_endpoint_status(endpoint_id: str, authorization: str | None = Header(def
     if not status:
         raise HTTPException(status_code=404, detail="Endpoint not found")
     return status
+
+
+@router.get(
+    "/api/endpoints/health", response_model=EndpointHealth, summary="Endpoint health summary"
+)
+def endpoint_health(authorization: str | None = Header(default=None)):
+    require_token(authorization)
+    endpoints = list(list_endpoints_db())
+    total = len(endpoints)
+    stale = 0
+    for e in endpoints:
+        try:
+            last = datetime.fromisoformat(e.last_seen)
+            diff = (datetime.now(UTC) - last).total_seconds()
+            if diff > 300:
+                stale += 1
+        except Exception:
+            stale += 1
+    active = max(total - stale, 0)
+    return EndpointHealth(active=active, stale=stale, total=total)
 
 
 @router.delete("/api/endpoints/{endpoint_id}", status_code=204, summary="Delete endpoint")

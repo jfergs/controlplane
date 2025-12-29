@@ -96,3 +96,9 @@ class EndpointStatus(StatusResponse):
 
 class EndpointList(BaseModel):
     endpoints: list[EndpointStatus]
+
+
+class EndpointHealth(BaseModel):
+    active: int
+    stale: int
+    total: int
