@@ -150,3 +150,10 @@ def get_endpoint(endpoint_id: str) -> EndpointStatus | None:
     if not row:
         return None
     return _row_to_status(row)
+
+
+def delete_endpoint(endpoint_id: str) -> None:
+    init_db()
+    with _conn() as conn:
+        conn.execute("DELETE FROM endpoints WHERE endpoint_id = ?", (endpoint_id,))
+        conn.commit()

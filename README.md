@@ -52,6 +52,7 @@ just fmt      # ruff format + fix
 - `GET /metrics` — Prometheus metrics
 - `POST /api/push-status` — endpoints push metrics (same shape as `/api/status`) using the bearer token
 - `GET /api/endpoints` — list pushed endpoints; `GET /api/endpoints/{endpoint_id}` — detail
+- `DELETE /api/endpoints/{endpoint_id}` — remove a pushed endpoint
 - `GET /dashboard` — built-in dark dashboard (enter your bearer token in the UI to view status)
 
 ## CLI

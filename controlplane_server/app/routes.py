@@ -5,13 +5,13 @@ import platform
 import re
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 
 from .config import APP_NAME
 from .schemas import EndpointList, EndpointStatus, HealthResponse, RootResponse, StatusResponse
 from .security import require_token
-from .storage import get_endpoint, list_endpoints_db, save_endpoint
+from .storage import delete_endpoint, get_endpoint, list_endpoints_db, save_endpoint
 from .system import status_payload
 
 router = APIRouter()
@@ -76,6 +76,16 @@ def get_endpoint_status(endpoint_id: str, authorization: str | None = Header(def
     if not status:
         raise HTTPException(status_code=404, detail="Endpoint not found")
     return status
+
+
+@router.delete("/api/endpoints/{endpoint_id}", status_code=204, summary="Delete endpoint")
+def delete_endpoint_status(endpoint_id: str, authorization: str | None = Header(default=None)):
+    require_token(authorization)
+    existing = get_endpoint(endpoint_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Endpoint not found")
+    delete_endpoint(endpoint_id)
+    return Response(status_code=204)
 
 
 @router.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
@@ -342,15 +352,76 @@ def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
           return;
         }
         endpointsDiv.innerHTML = data.endpoints
-          .map(
-            (e) =>
-              `<div class="row"><span>${e.endpoint_id}</span><span class="muted">${e.last_seen}</span></div>`
-          )
+          .map((e) => {
+            const age = timeAgo(e.last_seen);
+            const stale = isStale(e.last_seen);
+            return `<div class="row">
+              <span>${e.endpoint_id} <span class="muted">(${age}${stale ? " • stale" : ""})</span></span>
+              <span>
+                <button onclick="window.viewEndpoint('${e.endpoint_id}')">View</button>
+                <button onclick="window.deleteEndpoint('${e.endpoint_id}')">Delete</button>
+              </span>
+            </div>`;
+          })
           .join("");
       } catch (err) {
         endpointsDiv.innerHTML = "Error loading endpoints: " + err;
       }
     }
+
+    function timeAgo(iso) {
+      try {
+        const then = new Date(iso);
+        const diff = (Date.now() - then.getTime()) / 1000;
+        if (diff < 60) return `${Math.round(diff)}s ago`;
+        if (diff < 3600) return `${Math.round(diff/60)}m ago`;
+        if (diff < 86400) return `${Math.round(diff/3600)}h ago`;
+        return `${Math.round(diff/86400)}d ago`;
+      } catch {
+        return iso;
+      }
+    }
+
+    function isStale(iso) {
+      try {
+        const then = new Date(iso);
+        const diff = (Date.now() - then.getTime()) / 1000;
+        return diff > 300;
+      } catch {
+        return false;
+      }
+    }
+
+    window.viewEndpoint = async (endpointId) => {
+      const token = tokenInput.value.trim();
+      const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
+      try {
+        const resp = await fetch(base + "/api/endpoints/" + endpointId, {
+          headers: { Authorization: "Bearer " + token },
+        });
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const data = await resp.json();
+        raw.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        raw.textContent = "Error loading endpoint: " + err;
+      }
+    };
+
+    window.deleteEndpoint = async (endpointId) => {
+      const token = tokenInput.value.trim();
+      const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
+      if (!confirm(`Delete endpoint ${endpointId}?`)) return;
+      try {
+        const resp = await fetch(base + "/api/endpoints/" + endpointId, {
+          method: "DELETE",
+          headers: { Authorization: "Bearer " + token },
+        });
+        if (!resp.ok && resp.status !== 204) throw new Error("HTTP " + resp.status);
+        fetchEndpoints();
+      } catch (err) {
+        alert("Failed to delete: " + err);
+      }
+    };
 
     function generateScript() {
       const token = tokenInput.value.trim();
