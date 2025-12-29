@@ -8,14 +8,13 @@ import time
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
-
 try:
     import psutil
 except Exception:  # pragma: no cover - psutil may be absent in minimal envs
     psutil = None
 
 from .config import get_thresholds
+from .schemas import DiskInfo, LoadInfo, MemoryInfo, NetIOInfo
 
 
 def _run(cmd: list[str]) -> str:
@@ -100,42 +99,6 @@ def network_io_counters() -> dict[str, int | None]:
     return {"bytes_sent": None, "bytes_recv": None}
 
 
-class DiskInfo(BaseModel):
-    total_gb: float | None
-    used_gb: float | None
-    free_gb: float | None
-
-
-class MemoryInfo(BaseModel):
-    total_gb: float | None
-    available_gb: float | None
-    percent: float | None
-
-
-class LoadInfo(BaseModel):
-    one_m: float | None
-    five_m: float | None
-    fifteen_m: float | None
-
-    def as_dict(self) -> dict[str, float | None]:
-        return {"1m": self.one_m, "5m": self.five_m, "15m": self.fifteen_m}
-
-
-class NetIOInfo(BaseModel):
-    bytes_sent: int | None
-    bytes_recv: int | None
-
-
-class StatusResponse(BaseModel):
-    uptime_sec: int
-    disk_root: DiskInfo
-    cpu_temp_c: float | None
-    memory: MemoryInfo
-    load_avg: LoadInfo
-    net_io: NetIOInfo
-    warnings: list[str]
-
-
 def status_payload() -> dict[str, Any]:
     load = load_average()
     thresholds = get_thresholds()
@@ -161,16 +124,15 @@ def status_payload() -> dict[str, Any]:
         if value is not None and value > limit:
             warnings.append(f"High load {label}: {value} > {limit}")
 
-    model = StatusResponse(
-        uptime_sec=uptime_seconds(),
-        disk_root=DiskInfo(**disk),
-        cpu_temp_c=cpu_temp_c(),
-        memory=MemoryInfo(**mem),
-        load_avg=LoadInfo(one_m=load.get("1m"), five_m=load.get("5m"), fifteen_m=load.get("15m")),
-        net_io=NetIOInfo(**network_io_counters()),
-        warnings=warnings,
-    )
-    data = model.model_dump()
-    # Replace load_avg with aliased keys
-    data["load_avg"] = model.load_avg.as_dict()
-    return data
+    metrics = {
+        "uptime_sec": uptime_seconds(),
+        "disk_root": DiskInfo(**disk).model_dump(),
+        "cpu_temp_c": cpu_temp_c(),
+        "memory": MemoryInfo(**mem).model_dump(),
+        "load_avg": LoadInfo(
+            one_m=load.get("1m"), five_m=load.get("5m"), fifteen_m=load.get("15m")
+        ).as_alias_dict(),
+        "net_io": NetIOInfo(**network_io_counters()).model_dump(),
+        "warnings": warnings,
+    }
+    return metrics

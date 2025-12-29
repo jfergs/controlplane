@@ -5,28 +5,30 @@ import platform
 from fastapi import APIRouter, Header
 
 from .config import APP_NAME
+from .schemas import HealthResponse, RootResponse, StatusResponse
 from .security import require_token
 from .system import status_payload
 
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("/", response_model=RootResponse, summary="Service info")
 def root():
-    return {"name": APP_NAME, "status": "ok"}
+    return RootResponse(name=APP_NAME, status="ok")
 
 
-@router.get("/health")
+@router.get("/health", response_model=HealthResponse, summary="Liveness check")
 def health():
-    return {"ok": True}
+    return HealthResponse(ok=True)
 
 
-@router.get("/api/status")
+@router.get("/api/status", response_model=StatusResponse, summary="Host status")
 def status(authorization: str | None = Header(default=None)):
     require_token(authorization)
-    return {
-        "host": platform.node(),
-        "os": platform.platform(),
-        "python": platform.python_version(),
-        **status_payload(),
-    }
+    metrics = status_payload()
+    return StatusResponse(
+        host=platform.node(),
+        os=platform.platform(),
+        python=platform.python_version(),
+        **metrics,
+    )
