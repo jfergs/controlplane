@@ -3,6 +3,11 @@
 ControlPlane is a lightweight FastAPI-based control plane for monitoring and
 controlled automation in macOS and Raspberry Pi home lab environments.
 
+## API
+
+- `GET /api/status` (requires `Authorization: Bearer <CONTROLPLANE_TOKEN>`) returns host info,
+  disk usage, CPU temp (when available), memory stats, load average, and network I/O counters.
+
 ## Setup
 
 ```bash

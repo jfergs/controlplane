@@ -40,3 +40,17 @@ def test_status_succeeds_with_token(client: TestClient) -> None:
     data = resp.json()
     assert data["host"]
     assert data["disk_root"]["total_gb"] >= 0
+    memory = data["memory"]
+    assert set(memory) == {"total_gb", "available_gb", "percent"}
+    for value in memory.values():
+        assert value is None or isinstance(value, int | float)
+
+    load_avg = data["load_avg"]
+    assert set(load_avg) == {"1m", "5m", "15m"}
+    for value in load_avg.values():
+        assert value is None or isinstance(value, int | float)
+
+    net_io = data["net_io"]
+    assert set(net_io) == {"bytes_sent", "bytes_recv"}
+    for value in net_io.values():
+        assert value is None or isinstance(value, int | float)
