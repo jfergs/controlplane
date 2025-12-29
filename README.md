@@ -50,6 +50,7 @@ just fmt      # ruff format + fix
   uptime, disk, CPU temp (if available), memory, load avg, net I/O, Wi-Fi (macOS/Linux), battery
   (macOS/Linux), warnings, thresholds applied
 - `GET /metrics` — Prometheus metrics
+- `GET /dashboard` — built-in dark dashboard (enter your bearer token in the UI to view status)
 
 ## CLI
 
