@@ -500,8 +500,10 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
           <input id="token" type="password" placeholder="Bearer token" />
           <input id="url" type="text" placeholder="Base URL" value="" />
           <input id="interval" type="number" min="2" value="5" title="Refresh seconds" />
+          <button id="rotate-token">Generate token</button>
           <button id="save">Save</button>
         </div>
+        <div class="muted" style="font-size:12px;">After generating a new token, update <code>CONTROLPLANE_TOKEN</code> in your server env and restart the container.</div>
         <div class="controls" style="padding:8px 0; gap:6px;">
           <select id="os-select" style="padding: 10px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px;">
             <option value="macos">macOS (bash)</option>
@@ -560,6 +562,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const filterSearch = document.getElementById("filter-search");
     const filterReset = document.getElementById("filter-reset");
     const summaryGrid = document.getElementById("summary-grid");
+    const rotateTokenBtn = document.getElementById("rotate-token");
     const onboardingCard = document.getElementById("onboarding-card");
     const warningsCard = document.getElementById("warnings-card");
     const gridCard = document.getElementById("grid-card");
@@ -612,7 +615,17 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       localStorage.setItem("cp_interval", intervalInput.value || "5");
       localStorage.setItem("cp_theme", themeSelect.value || "graphite");
       localStorage.setItem("cp_lockdown", lockdown ? "1" : "0");
-      schedule();
+    schedule();
+  }
+
+    function generateToken() {
+      if (window.crypto && window.crypto.getRandomValues) {
+        const arr = new Uint8Array(24);
+        window.crypto.getRandomValues(arr);
+        return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
+      }
+      // fallback
+      return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
     }
 
     function schedule() {
@@ -1404,6 +1417,14 @@ echo ControlPlane agent removed.
       ];
       summaryGrid.innerHTML = rows.join("");
     }
+
+    rotateTokenBtn.addEventListener("click", () => {
+      const newToken = generateToken();
+      tokenInput.value = newToken;
+      localStorage.setItem("cp_token", newToken);
+      if (scriptVisible) refreshScript();
+      alert("New token generated. Update CONTROLPLANE_TOKEN in your server/container env and restart to apply.");
+    });
 
     toggleGrid.addEventListener("change", () => {
       rawVisible = toggleGrid.checked;
