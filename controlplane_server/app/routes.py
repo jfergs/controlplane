@@ -277,6 +277,9 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       gap: 12px;
       justify-content: center;
     }
+    .endpoint-grid.compact {
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
     .endpoint-card {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -454,6 +457,12 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     </div>
   </header>
   <main>
+    <div class="card" id="summary-card">
+      <div class="section-header">
+        <h3 style="margin:0;">Summary</h3>
+      </div>
+      <div class="grid" id="summary-grid"></div>
+    </div>
     <div class="card alt">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <h3 style="margin:0;">Devices</h3>
@@ -482,12 +491,6 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         </div>
       </div>
       <div id="devices" class="endpoint-grid">Loading…</div>
-    </div>
-    <div class="card" id="summary-card">
-      <div class="section-header">
-        <h3 style="margin:0;">Summary</h3>
-      </div>
-      <div class="grid" id="summary-grid"></div>
     </div>
     <div class="card" id="onboarding-card" hidden>
       <div class="section-header">
@@ -1329,6 +1332,18 @@ echo ControlPlane agent removed.
       }
     });
 
+    // Default: focus UX polish next (compact list toggle)
+    const compactToggle = document.createElement("button");
+    compactToggle.textContent = "List view";
+    compactToggle.style.marginLeft = "6px";
+    compactToggle.addEventListener("click", () => {
+      devicesGrid.classList.toggle("compact");
+      compactToggle.textContent = devicesGrid.classList.contains("compact") ? "Tile view" : "List view";
+    });
+    // append to devices header controls
+    const devicesControls = document.querySelector(".card.alt .controls");
+    if (devicesControls) devicesControls.appendChild(compactToggle);
+
     expandAllBtn.addEventListener("click", () => {
       expandAllActive = !expandAllActive;
       expandAllBtn.textContent = expandAllActive ? "Collapse all" : "Expand all";
@@ -1406,15 +1421,19 @@ echo ControlPlane agent removed.
         else if (lowerOs.includes("linux")) osCounts.linux += 1;
         else osCounts.other += 1;
       });
-      const rows = [
-        card("Total endpoints", total),
-        card("Active", health.active),
-        card("Stale", health.stale),
-        card("Windows", osCounts.windows),
-        card("macOS", osCounts.mac),
-        card("Linux", osCounts.linux),
-        card("Other", osCounts.other),
-      ];
+      const rows = [];
+      rows.push(card("Total endpoints", total));
+      rows.push(card("Active", health.active));
+      rows.push(card("Stale", health.stale));
+      rows.push(card("Windows", osCounts.windows));
+      rows.push(card("macOS", osCounts.mac));
+      rows.push(card("Linux", osCounts.linux));
+      rows.push(card("Other", osCounts.other));
+
+      if (hostStatus) {
+        const up = formatDuration(hostStatus.uptime_sec);
+        rows.unshift(card("Host uptime", up, hostStatus.host || "local-host"));
+      }
       summaryGrid.innerHTML = rows.join("");
     }
 
