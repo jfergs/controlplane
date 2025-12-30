@@ -273,8 +273,9 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     }
     .endpoint-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 500px));
       gap: 12px;
+      justify-content: center;
     }
     .endpoint-card {
       background: var(--panel);
@@ -286,8 +287,10 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       gap: 6px;
       box-shadow: 0 6px 14px rgba(0,0,0,0.14);
       transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-      aspect-ratio: 1 / 1;
+      aspect-ratio: 3 / 4;
       overflow: hidden;
+      max-width: 500px;
+      width: 100%;
     }
     .endpoint-card.stale { border-color: #f97316; }
     .endpoint-card h4 { margin: 0; font-size: 16px; }
