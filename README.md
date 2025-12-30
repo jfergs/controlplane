@@ -72,7 +72,7 @@ just fmt      # ruff format + fix
 - `POST /api/push-status` — endpoints push metrics (same shape as `/api/status`) using the bearer token
 - `GET /api/endpoints` — list pushed endpoints; `GET /api/endpoints/{endpoint_id}` — detail
 - `DELETE /api/endpoints/{endpoint_id}` — remove a pushed endpoint
-- `GET /dashboard` — built-in dark dashboard (enter your bearer token in the UI to view status)
+- `GET /dashboard` — built-in dark dashboard (protected by username/password you set on first visit). Dashboard data uses your session; the bearer token is only needed to generate agent install scripts.
 
 ## CLI
 
@@ -92,12 +92,40 @@ python -m controlplane_cli token-set --token "$CONTROLPLANE_TOKEN"
 
 ## Security / deployment
 
-- Keep the API behind TLS (reverse proxy such as nginx/Caddy/Traefik) and restrict exposure to trusted networks.
-- The bearer token protects `/api/status`, `/api/push-status`, and `/api/endpoints*`; rotate it as needed and restart the server/agents.
+- Always serve behind TLS (nginx/Caddy/Traefik). Restrict exposure to trusted networks.
+- Dashboard: username/password set on first visit to `/login`; session cookie is signed with `CONTROLPLANE_SESSION_SECRET` and has TTL `CONTROLPLANE_SESSION_TTL_SEC` (default 86400). CSRF is enforced for destructive dashboard actions.
+- API bearer token protects `/api/status`, `/api/push-status`, `/api/endpoints*`; rotate it as needed and restart the server/agents. Dashboard does not expose the bearer; it proxies through the session.
+- Rate limiting (per-client, best-effort) can be enabled via `CONTROLPLANE_RATE_LIMIT` (e.g., `100/min`). Also consider limits at the reverse proxy.
+- Database path can be overridden with `CONTROLPLANE_DB_PATH`; endpoint retention (seconds) via `CONTROLPLANE_ENDPOINT_RETENTION_SEC`.
 - CORS is off by default; enable only for trusted origins if exposing the dashboard across domains.
-- Rate limiting (per-client, best-effort) can be enabled via `CONTROLPLANE_RATE_LIMIT` (e.g., `100/min`). Consider enforcing limits at the reverse proxy, too.
-- Database path can be overridden with `CONTROLPLANE_DB_PATH`; endpoint retention (in seconds) via `CONTROLPLANE_ENDPOINT_RETENTION_SEC`.
-- Dashboard login: first visit to `/login` lets you set username/password (stored in `.controlplane_login.json`). Sessions use `CONTROLPLANE_SESSION_SECRET`; rotate it to invalidate sessions.
+
+### TLS reverse proxy example (nginx)
+
+```nginx
+server {
+  listen 443 ssl;
+  server_name controlplane.example.com;
+
+  ssl_certificate     /etc/letsencrypt/live/controlplane.example.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/controlplane.example.com/privkey.pem;
+
+  location / {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+```
+
+### TLS reverse proxy example (Caddyfile)
+
+```
+controlplane.example.com {
+  reverse_proxy 127.0.0.1:8000
+}
+```
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) runs ruff and pytest on push/PR to main.
