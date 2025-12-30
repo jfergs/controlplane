@@ -1180,6 +1180,29 @@ echo ControlPlane agent removed.
       }
     });
 
+    expandAllBtn.addEventListener("click", () => {
+      expandAllActive = !expandAllActive;
+      expandAllBtn.textContent = expandAllActive ? "Collapse all" : "Expand all";
+      const cards = Array.from(document.querySelectorAll(".endpoint-card"));
+      cards.forEach((cardEl) => {
+        const id = cardEl.dataset.id;
+        const detail = cardEl.querySelector(".endpoint-detail");
+        const toggleBtn = cardEl.querySelector('button[data-action="toggle"]');
+        if (!detail || !toggleBtn) return;
+        if (expandAllActive) {
+          detail.classList.add("show");
+          cardEl.classList.add("expanded");
+          expandedIds.add(id);
+          toggleBtn.textContent = "Hide";
+        } else {
+          detail.classList.remove("show");
+          cardEl.classList.remove("expanded");
+          expandedIds.delete(id);
+          toggleBtn.textContent = "Show";
+        }
+      });
+    });
+
     toggleOnboarding.addEventListener("change", () => {
       onboardingVisible = toggleOnboarding.checked;
       onboardingCard.hidden = !onboardingVisible;
