@@ -492,6 +492,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
           <div class="controls" style="gap:6px;">
             <button id="expand-all">Expand all</button>
             <button id="view-toggle">List view</button>
+            <span class="muted" id="last-refresh-label" style="font-size:12px;"></span>
           </div>
           <div class="controls" style="gap:6px; flex-wrap: wrap;">
             <input id="filter-search" type="text" placeholder="Search name/OS/warnings" style="min-width: 180px;" />
@@ -594,6 +595,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const summaryGrid = document.getElementById("summary-grid");
     const rotateTokenBtn = document.getElementById("rotate-token");
     const viewToggleBtn = document.getElementById("view-toggle");
+    const lastRefreshLabel = document.getElementById("last-refresh-label");
     const onboardingCard = document.getElementById("onboarding-card");
     const warningsCard = document.getElementById("warnings-card");
     const gridCard = document.getElementById("grid-card");
@@ -1406,6 +1408,9 @@ echo ControlPlane agent removed.
         : "—";
       const status = lastError ? `Error: ${lastError}` : `Updated ${ts}`;
       healthPill.textContent = `Endpoints: ${health.active} active • ${health.stale} stale / ${endpointsCache.length} total • ${status}`;
+      if (lastRefreshLabel) {
+        lastRefreshLabel.textContent = lastError ? status : `Updated ${ts}`;
+      }
     }
 
     toggleOnboarding.addEventListener("change", () => {
@@ -1427,9 +1432,18 @@ echo ControlPlane agent removed.
       }
     });
 
-    filterStatus.addEventListener("change", renderDevices);
-    filterOs.addEventListener("change", renderDevices);
-    filterKind.addEventListener("change", renderDevices);
+    filterStatus.addEventListener("change", () => {
+      localStorage.setItem("cp_filter_status", filterStatus.value);
+      renderDevices();
+    });
+    filterOs.addEventListener("change", () => {
+      localStorage.setItem("cp_filter_os", filterOs.value);
+      renderDevices();
+    });
+    filterKind.addEventListener("change", () => {
+      localStorage.setItem("cp_filter_kind", filterKind.value);
+      renderDevices();
+    });
     filterSearch.addEventListener("input", () => {
       localStorage.setItem("cp_filter_search", filterSearch.value);
       renderDevices();
