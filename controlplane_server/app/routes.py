@@ -418,7 +418,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       <div class="panel-menu">
         <button id="panels-toggle">Panels</button>
         <div id="panels-dropdown" class="panel-dropdown" hidden>
-          <div class="panel-item"><label><input type="checkbox" id="toggle-onboarding" checked /> Onboarding</label></div>
+          <div class="panel-item"><label><input type="checkbox" id="toggle-onboarding" /> Onboarding</label></div>
           <div class="panel-item"><label><input type="checkbox" id="toggle-warnings" /> Warnings</label></div>
           <div class="panel-item"><label><input type="checkbox" id="toggle-grid" /> THE GRID</label></div>
         </div>
@@ -435,7 +435,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       </div>
       <div id="devices" class="endpoint-grid">Loading…</div>
     </div>
-    <div class="card">
+    <div class="card" id="onboarding-card" hidden>
       <div class="section-header">
         <h3 style="margin:0;">Onboarding</h3>
         <button id="onboarding-toggle">Show</button>
@@ -460,14 +460,14 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         <pre id="script" hidden style="white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--panel); padding: 12px; border-radius: 10px; border: 1px solid var(--border);"></pre>
       </div>
     </div>
-    <div class="card alt">
+    <div class="card alt" id="warnings-card" hidden>
       <div class="section-header">
         <h3 style="margin:0;">Warnings</h3>
         <button id="warnings-toggle">Show</button>
       </div>
       <ul class="warnings" id="warnings" hidden></ul>
     </div>
-    <div class="card">
+    <div class="card" id="grid-card" hidden>
       <div class="section-header">
         <h3>THE GRID</h3>
         <button id="raw-toggle">Show</button>
@@ -500,6 +500,9 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const faviconLink = document.querySelector("link[rel='icon']");
     const warningsToggleBtn = document.getElementById("warnings-toggle");
     const expandAllBtn = document.getElementById("expand-all");
+    const onboardingCard = document.getElementById("onboarding-card");
+    const warningsCard = document.getElementById("warnings-card");
+    const gridCard = document.getElementById("grid-card");
     const panelsToggleBtn = document.getElementById("panels-toggle");
     const panelsDropdown = document.getElementById("panels-dropdown");
     const toggleOnboarding = document.getElementById("toggle-onboarding");
@@ -525,11 +528,14 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let expandAllActive = false;
     // initialize visibility from panel toggles
     onboardingVisible = toggleOnboarding.checked;
+    onboardingCard.hidden = !onboardingVisible;
     onboardingContent.hidden = !onboardingVisible;
     onboardingToggle.textContent = onboardingVisible ? "Hide" : "Show";
+    warningsCard.hidden = !toggleWarnings.checked;
     warningsList.hidden = !toggleWarnings.checked;
     warningsToggleBtn.textContent = toggleWarnings.checked ? "Hide" : "Show";
     rawVisible = toggleGrid.checked;
+    gridCard.hidden = !rawVisible;
     raw.hidden = !rawVisible;
     rawToggleBtn.textContent = rawVisible ? "Hide" : "Show";
 
@@ -1126,6 +1132,7 @@ echo ControlPlane agent removed.
       raw.hidden = !rawVisible;
       rawToggleBtn.textContent = rawVisible ? "Hide" : "Show";
       toggleGrid.checked = rawVisible;
+      gridCard.hidden = !rawVisible;
     });
 
     warningsToggleBtn.addEventListener("click", () => {
@@ -1134,10 +1141,12 @@ echo ControlPlane agent removed.
         warningsList.removeAttribute("hidden");
         warningsToggleBtn.textContent = "Hide";
         toggleWarnings.checked = true;
+        warningsCard.hidden = false;
       } else {
         warningsList.setAttribute("hidden", "");
         warningsToggleBtn.textContent = "Show";
         toggleWarnings.checked = false;
+        warningsCard.hidden = true;
       }
     });
 
@@ -1173,15 +1182,18 @@ echo ControlPlane agent removed.
 
     toggleOnboarding.addEventListener("change", () => {
       onboardingVisible = toggleOnboarding.checked;
+      onboardingCard.hidden = !onboardingVisible;
       onboardingContent.hidden = !onboardingVisible;
       onboardingToggle.textContent = onboardingVisible ? "Hide" : "Show";
     });
 
     toggleWarnings.addEventListener("change", () => {
       if (toggleWarnings.checked) {
+        warningsCard.hidden = false;
         warningsList.removeAttribute("hidden");
         warningsToggleBtn.textContent = "Hide";
       } else {
+        warningsCard.hidden = true;
         warningsList.setAttribute("hidden", "");
         warningsToggleBtn.textContent = "Show";
       }
@@ -1189,6 +1201,7 @@ echo ControlPlane agent removed.
 
     toggleGrid.addEventListener("change", () => {
       rawVisible = toggleGrid.checked;
+      gridCard.hidden = !rawVisible;
       raw.hidden = !rawVisible;
       rawToggleBtn.textContent = rawVisible ? "Hide" : "Show";
     });
