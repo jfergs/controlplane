@@ -408,16 +408,14 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     <div class="card alt">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <h3 style="margin:0;">Devices</h3>
-        <div class="controls" style="padding:6px 0; gap:6px;">
-          <button id="refresh-endpoints">Refresh</button>
-        </div>
+        <div class="controls" style="padding:6px 0; gap:6px;"></div>
       </div>
       <div id="devices" class="endpoint-grid">Loading…</div>
     </div>
     <div class="card">
       <div class="section-header">
         <h3 style="margin:0;">Onboarding</h3>
-        <button id="onboarding-toggle">Expand</button>
+        <button id="onboarding-toggle">Show</button>
       </div>
       <div id="onboarding-content" hidden>
         <p class="muted">Generate install scripts for macOS or Windows endpoints. They install dependencies, collect metrics, and POST to this server with the bearer token. Scripts verify TLS by default and back off on errors.</p>
@@ -425,13 +423,14 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
           <input id="token" type="password" placeholder="Bearer token" />
           <input id="url" type="text" placeholder="Base URL" value="" />
           <input id="interval" type="number" min="2" value="5" title="Refresh seconds" />
+          <button id="save">Save</button>
         </div>
         <div class="controls" style="padding:8px 0; gap:6px;">
           <select id="os-select" style="padding: 10px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px;">
             <option value="macos">macOS (bash)</option>
             <option value="windows">Windows (PowerShell)</option>
           </select>
-          <button id="script-toggle">Show script</button>
+          <button id="script-toggle">Show</button>
           <button id="copy-script">Copy script</button>
           <button id="copy-uninstall">Copy uninstall</button>
         </div>
@@ -439,8 +438,11 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       </div>
     </div>
     <div class="card alt">
-      <h3>Warnings</h3>
-      <ul class="warnings" id="warnings"></ul>
+      <div class="section-header">
+        <h3 style="margin:0;">Warnings</h3>
+        <button id="warnings-toggle">Show</button>
+      </div>
+      <ul class="warnings" id="warnings" hidden></ul>
     </div>
     <div class="card">
       <div class="section-header">
@@ -466,7 +468,6 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const copyUninstallBtn = document.getElementById("copy-uninstall");
     const osSelect = document.getElementById("os-select");
     const themeSelect = document.getElementById("theme-select");
-    const refreshEndpointsBtn = document.getElementById("refresh-endpoints");
     const onboardingToggle = document.getElementById("onboarding-toggle");
     const onboardingContent = document.getElementById("onboarding-content");
     const scriptToggleBtn = document.getElementById("script-toggle");
@@ -474,6 +475,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const awakenBtn = document.getElementById("awaken-btn");
     const headerIcon = document.getElementById("header-icon");
     const faviconLink = document.querySelector("link[rel='icon']");
+    const warningsToggleBtn = document.getElementById("warnings-toggle");
 
     const defaultUrl = window.location.origin;
     const defaultToken = """
@@ -1068,8 +1070,7 @@ echo ControlPlane agent removed.
     });
 
     saveBtn.addEventListener("click", () => savePrefs());
-    refreshBtn.addEventListener("click", fetchStatus);
-    refreshEndpointsBtn.addEventListener("click", fetchEndpoints);
+    refreshBtn.addEventListener("click", () => { fetchStatus(); fetchEndpoints(); });
     applyTheme(themeSelect.value);
     if (scriptVisible) refreshScript();
     schedule();
@@ -1085,6 +1086,17 @@ echo ControlPlane agent removed.
       rawVisible = !rawVisible;
       raw.hidden = !rawVisible;
       rawToggleBtn.textContent = rawVisible ? "Hide" : "Show";
+    });
+
+    warningsToggleBtn.addEventListener("click", () => {
+      const hidden = warningsList.hasAttribute("hidden");
+      if (hidden) {
+        warningsList.removeAttribute("hidden");
+        warningsToggleBtn.textContent = "Hide";
+      } else {
+        warningsList.setAttribute("hidden", "");
+        warningsToggleBtn.textContent = "Show";
+      }
     });
 
     awakenBtn.addEventListener("click", () => {
