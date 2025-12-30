@@ -1341,6 +1341,9 @@ echo ControlPlane agent removed.
           if (expanded) expandedIds.add(id);
           else expandedIds.delete(id);
         }
+      } else if (action === "copy") {
+        const json = btn.dataset.json || "";
+        copyText(JSON.parse(json ? json : "{}") ? JSON.stringify(JSON.parse(json), null, 2) : json, btn, "Copy JSON");
       }
     });
 
@@ -1590,6 +1593,7 @@ echo ControlPlane agent removed.
         <div class="meta-line"><span>Uptime</span><span>${uptime}</span></div>
         <div class="endpoint-actions" style="margin-top:6px;">
           <button class="primary" data-action="toggle" data-id="${e.endpoint_id}">${expanded ? "Hide" : "Show"}</button>
+          <button data-action="copy" data-id="${e.endpoint_id}" data-json='${escapeHtml(JSON.stringify(e))}'>Copy JSON</button>
           ${deleteBtn}
         </div>
         <div class="endpoint-detail ${expanded ? "show" : ""}">${detail}</div>
