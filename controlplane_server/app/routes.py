@@ -483,6 +483,12 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       </div>
       <div id="devices" class="endpoint-grid">Loading…</div>
     </div>
+    <div class="card" id="summary-card">
+      <div class="section-header">
+        <h3 style="margin:0;">Summary</h3>
+      </div>
+      <div class="grid" id="summary-grid"></div>
+    </div>
     <div class="card" id="onboarding-card" hidden>
       <div class="section-header">
         <h3 style="margin:0;">Onboarding</h3>
@@ -553,6 +559,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const filterKind = document.getElementById("filter-kind");
     const filterSearch = document.getElementById("filter-search");
     const filterReset = document.getElementById("filter-reset");
+    const summaryGrid = document.getElementById("summary-grid");
     const onboardingCard = document.getElementById("onboarding-card");
     const warningsCard = document.getElementById("warnings-card");
     const gridCard = document.getElementById("grid-card");
@@ -583,6 +590,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let expandAllActive = false;
     let lockdown = localStorage.getItem("cp_lockdown") === "1";
     let lastRefresh = null;
+    let lastError = null;
     // initialize visibility from panel toggles
     onboardingVisible = toggleOnboarding.checked;
     onboardingCard.hidden = !onboardingVisible;
@@ -629,9 +637,11 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         render(data);
         renderDevices();
         lastRefresh = Date.now();
+        lastError = null;
         updateHealthPill();
       } catch (err) {
         raw.textContent = "Error: " + err;
+        lastError = err?.message || String(err);
         hostStatus = null;
         devicesGrid.innerHTML = "Error loading host: " + err;
       } finally {
@@ -740,6 +750,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         devicesGrid.innerHTML = rendered.join("");
       }
       updateHealthPill();
+      renderSummary();
     }
 
     function renderTile(e, isHost) {
@@ -1334,7 +1345,8 @@ echo ControlPlane agent removed.
       const ts = lastRefresh
         ? new Date(lastRefresh).toLocaleTimeString([], { hour12: false })
         : "—";
-      healthPill.textContent = `Endpoints: ${health.active} active • ${health.stale} stale / ${endpointsCache.length} total • Updated ${ts}`;
+      const status = lastError ? `Error: ${lastError}` : `Updated ${ts}`;
+      healthPill.textContent = `Endpoints: ${health.active} active • ${health.stale} stale / ${endpointsCache.length} total • ${status}`;
     }
 
     toggleOnboarding.addEventListener("change", () => {
@@ -1369,6 +1381,29 @@ echo ControlPlane agent removed.
       filterSearch.value = "";
       renderDevices();
     });
+    function renderSummary() {
+      if (!summaryGrid) return;
+      const total = endpointsCache.length;
+      const health = summarizeHealth(endpointsCache);
+      const osCounts = { windows: 0, mac: 0, linux: 0, other: 0 };
+      endpointsCache.forEach((e) => {
+        const lowerOs = (e.os || "").toLowerCase();
+        if (lowerOs.includes("windows")) osCounts.windows += 1;
+        else if (lowerOs.includes("darwin") || lowerOs.includes("mac")) osCounts.mac += 1;
+        else if (lowerOs.includes("linux")) osCounts.linux += 1;
+        else osCounts.other += 1;
+      });
+      const rows = [
+        card("Total endpoints", total),
+        card("Active", health.active),
+        card("Stale", health.stale),
+        card("Windows", osCounts.windows),
+        card("macOS", osCounts.mac),
+        card("Linux", osCounts.linux),
+        card("Other", osCounts.other),
+      ];
+      summaryGrid.innerHTML = rows.join("");
+    }
 
     toggleGrid.addEventListener("change", () => {
       rawVisible = toggleGrid.checked;
