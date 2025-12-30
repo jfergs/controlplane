@@ -400,7 +400,6 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         <option value="emerald">Emerald Slate</option>
         <option value="indigo">Indigo Rose</option>
       </select>
-      <button id="save">Save</button>
       <button id="refresh">Refresh</button>
     </div>
   </header>
@@ -408,7 +407,9 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     <div class="card alt">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <h3 style="margin:0;">Devices</h3>
-        <div class="controls" style="padding:6px 0; gap:6px;"></div>
+        <div class="controls" style="padding:6px 0; gap:6px;">
+          <button id="expand-all">Expand all</button>
+        </div>
       </div>
       <div id="devices" class="endpoint-grid">Loading…</div>
     </div>
@@ -476,6 +477,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const headerIcon = document.getElementById("header-icon");
     const faviconLink = document.querySelector("link[rel='icon']");
     const warningsToggleBtn = document.getElementById("warnings-toggle");
+    const expandAllBtn = document.getElementById("expand-all");
 
     const defaultUrl = window.location.origin;
     const defaultToken = """
@@ -493,6 +495,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let rawVisible = false;
     let expandedIds = new Set();
     let onboardingVisible = false;
+    let expandAllActive = false;
 
     function savePrefs() {
       localStorage.setItem("cp_token", tokenInput.value);
@@ -656,7 +659,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
           <span>Uptime: ${uptime}</span>
         </div>
         <div class="endpoint-actions">
-          <button class="primary" data-action="toggle" data-id="${e.endpoint_id}">${expanded ? "Collapse" : "Expand"}</button>
+          <button class="primary" data-action="toggle" data-id="${e.endpoint_id}">${expanded ? "Hide" : "Show"}</button>
           ${deleteBtn}
         </div>
         <div class="endpoint-detail ${expanded ? "show" : ""}">${detail}</div>
@@ -1051,7 +1054,7 @@ echo ControlPlane agent removed.
           detail.classList.toggle("show");
           card.classList.toggle("expanded");
           const expanded = detail.classList.contains("show");
-          btn.textContent = expanded ? "Collapse" : "Expand";
+          btn.textContent = expanded ? "Hide" : "Show";
           if (expanded) expandedIds.add(id);
           else expandedIds.delete(id);
         }
@@ -1111,7 +1114,7 @@ echo ControlPlane agent removed.
     onboardingToggle.addEventListener("click", () => {
       onboardingVisible = !onboardingVisible;
       onboardingContent.hidden = !onboardingVisible;
-      onboardingToggle.textContent = onboardingVisible ? "Collapse" : "Expand";
+      onboardingToggle.textContent = onboardingVisible ? "Hide" : "Show";
     });
 
     async function copyText(text, btn, defaultLabel) {
