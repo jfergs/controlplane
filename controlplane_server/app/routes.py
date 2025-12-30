@@ -578,6 +578,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let onboardingVisible = false;
     let expandAllActive = false;
     let lockdown = localStorage.getItem("cp_lockdown") === "1";
+    let lastRefresh = null;
     // initialize visibility from panel toggles
     onboardingVisible = toggleOnboarding.checked;
     onboardingCard.hidden = !onboardingVisible;
@@ -623,6 +624,8 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         hostStatus = data;
         render(data);
         renderDevices();
+        lastRefresh = Date.now();
+        updateHealthPill();
       } catch (err) {
         raw.textContent = "Error: " + err;
         hostStatus = null;
@@ -732,10 +735,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       } else {
         devicesGrid.innerHTML = rendered.join("");
       }
-      const health = summarizeHealth(endpointsCache);
-      if (healthPill) {
-        healthPill.textContent = `Endpoints: ${health.active} active • ${health.stale} stale / ${endpointsCache.length} total`;
-      }
+      updateHealthPill();
     }
 
     function renderTile(e, isHost) {
@@ -1311,6 +1311,15 @@ echo ControlPlane agent removed.
         }
       });
     });
+
+    function updateHealthPill() {
+      if (!healthPill) return;
+      const health = summarizeHealth(endpointsCache);
+      const ts = lastRefresh
+        ? new Date(lastRefresh).toLocaleTimeString([], { hour12: false })
+        : "—";
+      healthPill.textContent = `Endpoints: ${health.active} active • ${health.stale} stale / ${endpointsCache.length} total • Updated ${ts}`;
+    }
 
     toggleOnboarding.addEventListener("change", () => {
       onboardingVisible = toggleOnboarding.checked;
