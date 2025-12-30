@@ -243,8 +243,8 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
     }
     .card {
       background: var(--panel);
@@ -277,15 +277,20 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 12px;
+      padding: 10px;
       display: flex;
       flex-direction: column;
       gap: 6px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.12);
-      aspect-ratio: 1 / 1;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.14);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
     }
     .endpoint-card.stale { border-color: #f97316; }
     .endpoint-card h4 { margin: 0; font-size: 16px; }
+    .endpoint-card.expanded {
+      transform: scale(1.02);
+      box-shadow: 0 12px 26px rgba(0,0,0,0.2);
+      border-color: var(--accent);
+    }
     .endpoint-meta {
       display: flex;
       gap: 10px;
@@ -314,6 +319,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       border-top: 1px solid var(--border);
       padding-top: 8px;
       margin-top: 4px;
+      display: none;
     }
     .endpoint-detail pre {
       white-space: pre-wrap;
@@ -325,6 +331,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       padding: 10px;
       margin: 0;
     }
+    .endpoint-detail.show { display: block; }
     .os-pill {
       display: inline-flex;
       align-items: center;
@@ -357,6 +364,14 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
   <header>
     <div class="brand">⚡ ControlPlane Dashboard</div>
     <div class="controls">
+      <select id="theme-select" style="min-width: 150px;">
+        <option value="default">Default</option>
+        <option value="midnight">Midnight Teal</option>
+        <option value="graphite">Graphite Neon</option>
+        <option value="obsidian">Obsidian Orange</option>
+        <option value="emerald">Emerald Slate</option>
+        <option value="indigo">Indigo Rose</option>
+      </select>
       <input id="token" type="password" placeholder="Bearer token" />
       <input id="url" type="text" placeholder="Base URL" value="" />
       <input id="interval" type="number" min="2" value="5" title="Refresh seconds" />
@@ -381,14 +396,6 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         <select id="os-select" style="padding: 10px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px;">
           <option value="macos">macOS (bash)</option>
           <option value="windows">Windows (PowerShell)</option>
-        </select>
-        <select id="theme-select" style="padding: 10px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px;">
-          <option value="default">Default</option>
-          <option value="midnight">Midnight Teal</option>
-          <option value="graphite">Graphite Neon</option>
-          <option value="obsidian">Obsidian Orange</option>
-          <option value="emerald">Emerald Slate</option>
-          <option value="indigo">Indigo Rose</option>
         </select>
         <button id="copy-script">Copy script</button>
         <button id="copy-uninstall">Copy uninstall</button>
@@ -596,7 +603,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
           <button class="primary" data-action="toggle" data-id="${e.endpoint_id}">Expand</button>
           ${deleteBtn}
         </div>
-        <div class="endpoint-detail" hidden>${detail}</div>
+        <div class="endpoint-detail">${detail}</div>
       </div>`;
     }
 
@@ -985,8 +992,9 @@ echo ControlPlane agent removed.
         const card = btn.closest(".endpoint-card");
         const detail = card?.querySelector(".endpoint-detail");
         if (detail) {
-          detail.hidden = !detail.hidden;
-          btn.textContent = detail.hidden ? "Expand" : "Collapse";
+          detail.classList.toggle("show");
+          card.classList.toggle("expanded");
+          btn.textContent = detail.classList.contains("show") ? "Collapse" : "Expand";
         }
       }
     });
