@@ -373,6 +373,20 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       opacity: 0.65;
       cursor: default;
     }
+    .panel-menu { position: relative; }
+    .panel-menu button { min-width: 90px; }
+    .panel-dropdown {
+      position: absolute;
+      top: 110%;
+      right: 0;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      box-shadow: var(--shadow);
+      min-width: 160px;
+    }
+    .panel-item { margin: 6px 0; }
     button {
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
       border: none;
@@ -401,6 +415,14 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         <option value="indigo">Indigo Rose</option>
       </select>
       <button id="refresh">Refresh</button>
+      <div class="panel-menu">
+        <button id="panels-toggle">Panels</button>
+        <div id="panels-dropdown" class="panel-dropdown" hidden>
+          <div class="panel-item"><label><input type="checkbox" id="toggle-onboarding" checked /> Onboarding</label></div>
+          <div class="panel-item"><label><input type="checkbox" id="toggle-warnings" /> Warnings</label></div>
+          <div class="panel-item"><label><input type="checkbox" id="toggle-grid" /> THE GRID</label></div>
+        </div>
+      </div>
     </div>
   </header>
   <main>
@@ -478,6 +500,11 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const faviconLink = document.querySelector("link[rel='icon']");
     const warningsToggleBtn = document.getElementById("warnings-toggle");
     const expandAllBtn = document.getElementById("expand-all");
+    const panelsToggleBtn = document.getElementById("panels-toggle");
+    const panelsDropdown = document.getElementById("panels-dropdown");
+    const toggleOnboarding = document.getElementById("toggle-onboarding");
+    const toggleWarnings = document.getElementById("toggle-warnings");
+    const toggleGrid = document.getElementById("toggle-grid");
 
     const defaultUrl = window.location.origin;
     const defaultToken = """
@@ -1081,7 +1108,7 @@ echo ControlPlane agent removed.
     scriptToggleBtn.addEventListener("click", () => {
       scriptVisible = !scriptVisible;
       scriptPre.hidden = !scriptVisible;
-      scriptToggleBtn.textContent = scriptVisible ? "Hide script" : "Show script";
+      scriptToggleBtn.textContent = scriptVisible ? "Hide" : "Show";
       if (scriptVisible) refreshScript();
     });
 
@@ -1089,6 +1116,7 @@ echo ControlPlane agent removed.
       rawVisible = !rawVisible;
       raw.hidden = !rawVisible;
       rawToggleBtn.textContent = rawVisible ? "Hide" : "Show";
+      toggleGrid.checked = rawVisible;
     });
 
     warningsToggleBtn.addEventListener("click", () => {
@@ -1096,9 +1124,11 @@ echo ControlPlane agent removed.
       if (hidden) {
         warningsList.removeAttribute("hidden");
         warningsToggleBtn.textContent = "Hide";
+        toggleWarnings.checked = true;
       } else {
         warningsList.setAttribute("hidden", "");
         warningsToggleBtn.textContent = "Show";
+        toggleWarnings.checked = false;
       }
     });
 
@@ -1115,6 +1145,38 @@ echo ControlPlane agent removed.
       onboardingVisible = !onboardingVisible;
       onboardingContent.hidden = !onboardingVisible;
       onboardingToggle.textContent = onboardingVisible ? "Hide" : "Show";
+      toggleOnboarding.checked = onboardingVisible;
+    });
+
+    panelsToggleBtn.addEventListener("click", () => {
+      const hidden = panelsDropdown.hasAttribute("hidden");
+      if (hidden) {
+        panelsDropdown.removeAttribute("hidden");
+      } else {
+        panelsDropdown.setAttribute("hidden", "");
+      }
+    });
+
+    toggleOnboarding.addEventListener("change", () => {
+      onboardingVisible = toggleOnboarding.checked;
+      onboardingContent.hidden = !onboardingVisible;
+      onboardingToggle.textContent = onboardingVisible ? "Hide" : "Show";
+    });
+
+    toggleWarnings.addEventListener("change", () => {
+      if (toggleWarnings.checked) {
+        warningsList.removeAttribute("hidden");
+        warningsToggleBtn.textContent = "Hide";
+      } else {
+        warningsList.setAttribute("hidden", "");
+        warningsToggleBtn.textContent = "Show";
+      }
+    });
+
+    toggleGrid.addEventListener("change", () => {
+      rawVisible = toggleGrid.checked;
+      raw.hidden = !rawVisible;
+      rawToggleBtn.textContent = rawVisible ? "Hide" : "Show";
     });
 
     async function copyText(text, btn, defaultLabel) {
