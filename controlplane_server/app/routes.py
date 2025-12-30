@@ -198,6 +198,47 @@ def db_check(authorization: str | None = Header(default=None)):
         raise HTTPException(status_code=500, detail=f"DB error: {exc}") from exc
 
 
+@router.get(
+    "/dashboard/api/status", response_model=StatusResponse, summary="Host status (session auth)"
+)
+def status_proxy(request: Request):
+    _require_session(request)
+    metrics = status_payload()
+    return StatusResponse(
+        host=platform.node(),
+        os=platform.platform(),
+        python=platform.python_version(),
+        **metrics,
+    )
+
+
+@router.get(
+    "/dashboard/api/endpoints", response_model=EndpointList, summary="List endpoints (session auth)"
+)
+def list_endpoints_proxy(request: Request):
+    _require_session(request)
+    return EndpointList(endpoints=list(list_endpoints_db()))
+
+
+@router.delete(
+    "/dashboard/api/endpoints/{endpoint_id}",
+    status_code=204,
+    summary="Delete endpoint (session auth)",
+)
+def delete_endpoint_proxy(endpoint_id: str, request: Request):
+    _require_session(request)
+    if not get_endpoint(endpoint_id):
+        raise HTTPException(status_code=404, detail="Endpoint not found")
+    delete_endpoint(endpoint_id)
+    return Response(status_code=204)
+
+
+@router.get("/dashboard/api/db-check", summary="Database health (session auth)")
+def db_check_proxy(request: Request):
+    _require_session(request)
+    return db_check(authorization=None)
+
+
 @router.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     if not _is_authed(request):
@@ -677,6 +718,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const defaultUrl = window.location.origin;
     const defaultToken = "";
     urlInput.value = localStorage.getItem("cp_url") || defaultUrl;
+    // Token is only used for agent scripts; the dashboard now proxies API calls via session.
     tokenInput.value = localStorage.getItem("cp_token") || defaultToken;
     intervalInput.value = localStorage.getItem("cp_interval") || "5";
     themeSelect.value = localStorage.getItem("cp_theme") || "graphite";
@@ -755,13 +797,10 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     }
 
     async function fetchStatus() {
-      const token = tokenInput.value.trim();
       const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
       refreshBtn.disabled = true;
       try {
-        const resp = await fetch(base + "/api/status", {
-          headers: { Authorization: "Bearer " + token },
-        });
+        const resp = await fetch(base + "/dashboard/api/status");
         if (!resp.ok) throw new Error("HTTP " + resp.status);
         const data = await resp.json();
         hostStatus = data;
@@ -800,12 +839,9 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     }
 
     async function fetchEndpoints() {
-      const token = tokenInput.value.trim();
       const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
       try {
-        const resp = await fetch(base + "/api/endpoints", {
-          headers: { Authorization: "Bearer " + token },
-        });
+        const resp = await fetch(base + "/dashboard/api/endpoints");
         if (!resp.ok) throw new Error("HTTP " + resp.status);
         const data = await resp.json();
         endpointsCache = data.endpoints || [];
@@ -903,12 +939,9 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     }
 
     async function fetchDbHealth() {
-      const token = tokenInput.value.trim();
       const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
       try {
-        const resp = await fetch(base + "/api/db-check", {
-          headers: { Authorization: "Bearer " + token },
-        });
+        const resp = await fetch(base + "/dashboard/api/db-check");
         if (!resp.ok) throw new Error("HTTP " + resp.status);
         dbHealth = await resp.json();
         renderSummary();
@@ -984,13 +1017,11 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     }
 
     async function deleteEndpoint(endpointId) {
-      const token = tokenInput.value.trim();
       const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
       if (!confirm(`Delete endpoint ${endpointId}?`)) return;
       try {
-        const resp = await fetch(base + "/api/endpoints/" + endpointId, {
+        const resp = await fetch(base + "/dashboard/api/endpoints/" + endpointId, {
           method: "DELETE",
-          headers: { Authorization: "Bearer " + token },
         });
         if (!resp.ok && resp.status !== 204) throw new Error("HTTP " + resp.status);
         fetchEndpoints();
@@ -1810,3 +1841,8 @@ def _is_authed(request: Request) -> bool:
     secret = os.environ.get("CONTROLPLANE_SESSION_SECRET", "change-me")
     expected = hmac.new(secret.encode("utf-8"), b"auth", hashlib.sha256).hexdigest()
     return cookie == f"ok.{expected}"
+
+
+def _require_session(request: Request):
+    if not _is_authed(request):
+        raise HTTPException(status_code=401, detail="Not authenticated")
