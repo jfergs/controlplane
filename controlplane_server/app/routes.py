@@ -590,6 +590,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         <option value="indigo">Indigo Rose</option>
       </select>
       <button id="refresh">Refresh</button>
+      <button id="logout-btn">Logout</button>
       <div class="panel-menu">
         <button id="panels-toggle">Panels</button>
         <div id="panels-dropdown" class="panel-dropdown" hidden>
@@ -743,6 +744,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const passwordToggle = document.getElementById("password-toggle");
     const passwordContent = document.getElementById("password-content");
     const resetCredsBtn = document.getElementById("reset-creds");
+    const logoutBtn = document.getElementById("logout-btn");
 
     const defaultUrl = window.location.origin;
     const defaultToken = "";
@@ -1661,6 +1663,12 @@ echo ControlPlane agent removed.
         ["cp_token","cp_url","cp_interval","cp_theme","cp_lockdown","cp_filter_status","cp_filter_os","cp_filter_kind","cp_filter_search","cp_view","cp_panels","cp_expanded","cp_expand_all"].forEach((k) => localStorage.removeItem(k));
         alert("Saved state cleared. Reloading...");
         location.reload();
+      });
+    }
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", () => {
+        ["cp_token","cp_url","cp_interval","cp_theme","cp_lockdown","cp_filter_status","cp_filter_os","cp_filter_kind","cp_filter_search","cp_view","cp_panels","cp_expanded","cp_expand_all"].forEach((k) => localStorage.removeItem(k));
+        window.location.href = "/logout";
       });
     }
     if (passwordToggle && passwordContent) {
