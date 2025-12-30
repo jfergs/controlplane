@@ -175,7 +175,9 @@ def logout():
 def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     if not _is_authed(request):
         return RedirectResponse(url="/login", status_code=302)
-    html = """
+    token_js = json.dumps(os.environ.get("CONTROLPLANE_TOKEN", ""))
+    html = (
+        """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -398,9 +400,6 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         <option value="emerald">Emerald Slate</option>
         <option value="indigo">Indigo Rose</option>
       </select>
-      <input id="token" type="password" placeholder="Bearer token" />
-      <input id="url" type="text" placeholder="Base URL" value="" />
-      <input id="interval" type="number" min="2" value="5" title="Refresh seconds" />
       <button id="save">Save</button>
       <button id="refresh">Refresh</button>
     </div>
@@ -416,18 +415,28 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       <div id="devices" class="endpoint-grid">Loading…</div>
     </div>
     <div class="card">
-      <h3>Onboarding</h3>
-      <p class="muted">Generate install scripts for macOS or Windows endpoints. They install dependencies, collect metrics, and POST to this server with the bearer token. Scripts verify TLS by default and back off on errors.</p>
-      <div class="controls" style="padding:8px 0; gap:6px;">
-        <select id="os-select" style="padding: 10px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px;">
-          <option value="macos">macOS (bash)</option>
-          <option value="windows">Windows (PowerShell)</option>
-        </select>
-        <button id="script-toggle">Show script</button>
-        <button id="copy-script">Copy script</button>
-        <button id="copy-uninstall">Copy uninstall</button>
+      <div class="section-header">
+        <h3 style="margin:0;">Onboarding</h3>
+        <button id="onboarding-toggle">Expand</button>
       </div>
-      <pre id="script" hidden style="white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--panel); padding: 12px; border-radius: 10px; border: 1px solid var(--border);"></pre>
+      <div id="onboarding-content" hidden>
+        <p class="muted">Generate install scripts for macOS or Windows endpoints. They install dependencies, collect metrics, and POST to this server with the bearer token. Scripts verify TLS by default and back off on errors.</p>
+        <div class="controls" style="padding:8px 0; gap:6px;">
+          <input id="token" type="password" placeholder="Bearer token" />
+          <input id="url" type="text" placeholder="Base URL" value="" />
+          <input id="interval" type="number" min="2" value="5" title="Refresh seconds" />
+        </div>
+        <div class="controls" style="padding:8px 0; gap:6px;">
+          <select id="os-select" style="padding: 10px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px;">
+            <option value="macos">macOS (bash)</option>
+            <option value="windows">Windows (PowerShell)</option>
+          </select>
+          <button id="script-toggle">Show script</button>
+          <button id="copy-script">Copy script</button>
+          <button id="copy-uninstall">Copy uninstall</button>
+        </div>
+        <pre id="script" hidden style="white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--panel); padding: 12px; border-radius: 10px; border: 1px solid var(--border);"></pre>
+      </div>
     </div>
     <div class="card alt">
       <h3>Warnings</h3>
@@ -458,6 +467,8 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const osSelect = document.getElementById("os-select");
     const themeSelect = document.getElementById("theme-select");
     const refreshEndpointsBtn = document.getElementById("refresh-endpoints");
+    const onboardingToggle = document.getElementById("onboarding-toggle");
+    const onboardingContent = document.getElementById("onboarding-content");
     const scriptToggleBtn = document.getElementById("script-toggle");
     const rawToggleBtn = document.getElementById("raw-toggle");
     const awakenBtn = document.getElementById("awaken-btn");
@@ -465,8 +476,11 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const faviconLink = document.querySelector("link[rel='icon']");
 
     const defaultUrl = window.location.origin;
+    const defaultToken = """
+        + token_js
+        + """;
     urlInput.value = localStorage.getItem("cp_url") || defaultUrl;
-    tokenInput.value = localStorage.getItem("cp_token") || "";
+    tokenInput.value = localStorage.getItem("cp_token") || defaultToken;
     intervalInput.value = localStorage.getItem("cp_interval") || "5";
     themeSelect.value = localStorage.getItem("cp_theme") || "graphite";
 
@@ -476,6 +490,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let scriptVisible = false;
     let rawVisible = false;
     let expandedIds = new Set();
+    let onboardingVisible = false;
 
     function savePrefs() {
       localStorage.setItem("cp_token", tokenInput.value);
@@ -1081,6 +1096,12 @@ echo ControlPlane agent removed.
       awakenBtn.disabled = true;
     });
 
+    onboardingToggle.addEventListener("click", () => {
+      onboardingVisible = !onboardingVisible;
+      onboardingContent.hidden = !onboardingVisible;
+      onboardingToggle.textContent = onboardingVisible ? "Collapse" : "Expand";
+    });
+
     async function copyText(text, btn, defaultLabel) {
       const original = btn.textContent;
       const fallback = () => {
@@ -1115,6 +1136,7 @@ echo ControlPlane agent removed.
 </body>
 </html>
     """
+    )
     return HTMLResponse(content=html)
 
 
