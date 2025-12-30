@@ -348,6 +348,12 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       height: 16px;
       stroke: currentColor;
     }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
     button {
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
       border: none;
@@ -397,6 +403,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
           <option value="macos">macOS (bash)</option>
           <option value="windows">Windows (PowerShell)</option>
         </select>
+        <button id="script-toggle">Show script</button>
         <button id="copy-script">Copy script</button>
         <button id="copy-uninstall">Copy uninstall</button>
       </div>
@@ -407,8 +414,11 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       <ul class="warnings" id="warnings"></ul>
     </div>
     <div class="card">
-      <h3>Raw</h3>
-      <pre id="raw" style="white-space: pre-wrap; font-size: 12px; color: var(--muted);"></pre>
+      <div class="section-header">
+        <h3>THE GRID</h3>
+        <button id="raw-toggle">Show</button>
+      </div>
+      <pre id="raw" hidden style="white-space: pre-wrap; font-size: 12px; color: var(--muted);"></pre>
     </div>
   </main>
   <script>
@@ -427,6 +437,8 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const osSelect = document.getElementById("os-select");
     const themeSelect = document.getElementById("theme-select");
     const refreshEndpointsBtn = document.getElementById("refresh-endpoints");
+    const scriptToggleBtn = document.getElementById("script-toggle");
+    const rawToggleBtn = document.getElementById("raw-toggle");
 
     const defaultUrl = window.location.origin;
     urlInput.value = localStorage.getItem("cp_url") || defaultUrl;
@@ -438,6 +450,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let hostStatus = null;
     let endpointsCache = [];
     let scriptVisible = false;
+    let rawVisible = false;
 
     function savePrefs() {
       localStorage.setItem("cp_token", tokenInput.value);
@@ -1016,6 +1029,19 @@ echo ControlPlane agent removed.
     applyTheme(themeSelect.value);
     if (scriptVisible) refreshScript();
     schedule();
+
+    scriptToggleBtn.addEventListener("click", () => {
+      scriptVisible = !scriptVisible;
+      scriptPre.hidden = !scriptVisible;
+      scriptToggleBtn.textContent = scriptVisible ? "Hide script" : "Show script";
+      if (scriptVisible) refreshScript();
+    });
+
+    rawToggleBtn.addEventListener("click", () => {
+      rawVisible = !rawVisible;
+      raw.hidden = !rawVisible;
+      rawToggleBtn.textContent = rawVisible ? "Hide" : "Show";
+    });
 
     async function copyText(text, btn, defaultLabel) {
       const original = btn.textContent;
