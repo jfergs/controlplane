@@ -429,6 +429,10 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       <span>ControlPlane Dashboard</span>
     </div>
     <div class="controls">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;" title="Hide onboarding/scripts">
+        <input id="lockdown-toggle" type="checkbox" />
+        Lockdown
+      </label>
       <div class="pill" id="health-pill">Endpoints: —</div>
       <select id="theme-select" style="min-width: 150px;">
         <option value="default">Default</option>
@@ -554,6 +558,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const toggleWarnings = document.getElementById("toggle-warnings");
     const toggleGrid = document.getElementById("toggle-grid");
     const healthPill = document.getElementById("health-pill");
+    const lockdownToggle = document.getElementById("lockdown-toggle");
 
     const defaultUrl = window.location.origin;
     const defaultToken = """
@@ -572,6 +577,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let expandedIds = new Set();
     let onboardingVisible = false;
     let expandAllActive = false;
+    let lockdown = localStorage.getItem("cp_lockdown") === "1";
     // initialize visibility from panel toggles
     onboardingVisible = toggleOnboarding.checked;
     onboardingCard.hidden = !onboardingVisible;
@@ -584,12 +590,15 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     gridCard.hidden = !rawVisible;
     raw.hidden = !rawVisible;
     rawToggleBtn.textContent = rawVisible ? "Hide" : "Show";
+    lockdownToggle.checked = lockdown;
+    applyLockdown();
 
     function savePrefs() {
       localStorage.setItem("cp_token", tokenInput.value);
       localStorage.setItem("cp_url", urlInput.value || defaultUrl);
       localStorage.setItem("cp_interval", intervalInput.value || "5");
       localStorage.setItem("cp_theme", themeSelect.value || "graphite");
+      localStorage.setItem("cp_lockdown", lockdown ? "1" : "0");
       schedule();
     }
 
@@ -1260,6 +1269,12 @@ echo ControlPlane agent removed.
       toggleOnboarding.checked = onboardingVisible;
     });
 
+    lockdownToggle.addEventListener("change", () => {
+      lockdown = lockdownToggle.checked;
+      localStorage.setItem("cp_lockdown", lockdown ? "1" : "0");
+      applyLockdown();
+    });
+
     panelsToggleBtn.addEventListener("click", () => {
       const hidden = panelsDropdown.hasAttribute("hidden");
       if (hidden) {
@@ -1356,6 +1371,25 @@ echo ControlPlane agent removed.
         }
       }
       setTimeout(() => (btn.textContent = defaultLabel), 1200);
+    }
+
+    function applyLockdown() {
+      const lock = lockdown;
+      // Hide/disable onboarding when locked
+      onboardingCard.hidden = lock || !toggleOnboarding.checked;
+      onboardingContent.hidden = lock || !onboardingVisible;
+      onboardingToggle.textContent = onboardingVisible && !lock ? "Hide" : "Show";
+      toggleOnboarding.checked = !lock && toggleOnboarding.checked;
+      toggleOnboarding.disabled = lock;
+      osSelect.disabled = lock;
+      copyBtn.disabled = lock;
+      copyUninstallBtn.disabled = lock;
+      scriptToggleBtn.disabled = lock;
+      tokenInput.disabled = lock;
+      urlInput.disabled = lock;
+      intervalInput.disabled = lock;
+      scriptPre.hidden = true;
+      scriptVisible = false;
     }
   </script>
 </body>
