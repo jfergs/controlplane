@@ -484,6 +484,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         <input id="lockdown-toggle" type="checkbox" />
         Lockdown
       </label>
+      <button id="clear-state">Clear saved state</button>
       <div class="pill" id="health-pill">Endpoints: —</div>
       <select id="theme-select" style="min-width: 150px;">
         <option value="default">Default</option>
@@ -632,6 +633,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const toggleGrid = document.getElementById("toggle-grid");
     const healthPill = document.getElementById("health-pill");
     const lockdownToggle = document.getElementById("lockdown-toggle");
+    const clearStateBtn = document.getElementById("clear-state");
 
     const defaultUrl = window.location.origin;
     const defaultToken = """
@@ -653,12 +655,12 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let rawVisible = false;
     let expandedIds = new Set((localStorage.getItem("cp_expanded") || "").split(",").filter(Boolean));
     let onboardingVisible = false;
-    let expandAllActive = false;
     let lockdown = localStorage.getItem("cp_lockdown") === "1";
     let lastRefresh = null;
     let lastError = null;
     let compactView = localStorage.getItem("cp_view") === "list";
     let panelsPref = JSON.parse(localStorage.getItem("cp_panels") || "{}");
+    let expandAllActive = localStorage.getItem("cp_expand_all") === "1";
     // initialize visibility from panel toggles and saved prefs
     if (panelsPref.onboarding !== undefined) toggleOnboarding.checked = panelsPref.onboarding;
     if (panelsPref.warnings !== undefined) toggleWarnings.checked = panelsPref.warnings;
@@ -841,6 +843,21 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       }
       // persist expanded ids
       localStorage.setItem("cp_expanded", Array.from(expandedIds).join(","));
+      // apply expand-all preference after render
+      if (expandAllActive) {
+        const cards = Array.from(document.querySelectorAll(".endpoint-card"));
+        cards.forEach((cardEl) => {
+          const id = cardEl.dataset.id;
+          const detail = cardEl.querySelector(".endpoint-detail");
+          const toggleBtn = cardEl.querySelector('button[data-action="toggle"]');
+          if (!detail || !toggleBtn) return;
+          detail.classList.add("show");
+          cardEl.classList.add("expanded");
+          expandedIds.add(id);
+          toggleBtn.textContent = "Hide";
+        });
+        expandAllBtn.textContent = "Collapse all";
+      }
       updateHealthPill();
       renderSummary();
     }
@@ -1414,6 +1431,7 @@ echo ControlPlane agent removed.
     expandAllBtn.addEventListener("click", () => {
       expandAllActive = !expandAllActive;
       expandAllBtn.textContent = expandAllActive ? "Collapse all" : "Expand all";
+      localStorage.setItem("cp_expand_all", expandAllActive ? "1" : "0");
       const cards = Array.from(document.querySelectorAll(".endpoint-card"));
       cards.forEach((cardEl) => {
         const id = cardEl.dataset.id;
@@ -1504,6 +1522,13 @@ echo ControlPlane agent removed.
         localStorage.setItem("cp_view", compactView ? "list" : "tile");
         devicesGrid.classList.toggle("compact", compactView);
         viewToggleBtn.textContent = compactView ? "Tile view" : "List view";
+      });
+    }
+    if (clearStateBtn) {
+      clearStateBtn.addEventListener("click", () => {
+        ["cp_token","cp_url","cp_interval","cp_theme","cp_lockdown","cp_filter_status","cp_filter_os","cp_filter_kind","cp_filter_search","cp_view","cp_panels","cp_expanded","cp_expand_all"].forEach((k) => localStorage.removeItem(k));
+        alert("Saved state cleared. Reloading...");
+        location.reload();
       });
     }
     function renderSummary() {
