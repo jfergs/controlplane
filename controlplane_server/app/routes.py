@@ -8,7 +8,9 @@ import os
 # ruff: noqa: E501
 import platform
 import re
+import secrets
 import sqlite3
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -33,6 +35,7 @@ router = APIRouter()
 _endpoint_store: dict[str, EndpointStatus] = {}
 _creds_file = Path(".controlplane_login.json")
 _session_cookie = "cp_auth"
+_csrf_cookie = "cp_csrf"
 
 
 def _slugify(name: str) -> str:
@@ -160,8 +163,23 @@ async def login_post(request: Request):
         _save_creds(username, password)
     elif not _check_password(username, password):
         return HTMLResponse(content="Invalid credentials", status_code=401)
+    ttl = int(os.environ.get("CONTROLPLANE_SESSION_TTL_SEC", "86400"))
+    csrf = _make_csrf_token()
     resp = RedirectResponse(url="/dashboard", status_code=302)
-    resp.set_cookie(_session_cookie, _make_session_cookie(), httponly=True, samesite="lax")
+    resp.set_cookie(
+        _session_cookie,
+        _make_session_cookie(),
+        httponly=True,
+        samesite="lax",
+        max_age=ttl,
+    )
+    resp.set_cookie(
+        _csrf_cookie,
+        csrf,
+        httponly=False,
+        samesite="lax",
+        max_age=ttl,
+    )
     return resp
 
 
@@ -169,12 +187,22 @@ async def login_post(request: Request):
 def logout():
     resp = RedirectResponse(url="/login", status_code=302)
     resp.delete_cookie(_session_cookie)
+    resp.delete_cookie(_csrf_cookie)
     return resp
 
 
 @router.post("/api/reset-dashboard", summary="Reset dashboard credentials")
 def reset_dashboard(authorization: str | None = Header(default=None)):
     require_token(authorization)
+    if _creds_file.exists():
+        _creds_file.unlink(missing_ok=True)
+    return {"ok": True}
+
+
+@router.post("/dashboard/api/reset-dashboard", summary="Reset dashboard credentials (session auth)")
+def reset_dashboard_session(request: Request):
+    _require_session(request)
+    _require_csrf(request)
     if _creds_file.exists():
         _creds_file.unlink(missing_ok=True)
     return {"ok": True}
@@ -227,6 +255,7 @@ def list_endpoints_proxy(request: Request):
 )
 def delete_endpoint_proxy(endpoint_id: str, request: Request):
     _require_session(request)
+    _require_csrf(request)
     if not get_endpoint(endpoint_id):
         raise HTTPException(status_code=404, detail="Endpoint not found")
     delete_endpoint(endpoint_id)
@@ -894,6 +923,11 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         .replace(/'/g, "&#39;");
     }
 
+    function getCsrf() {
+      const m = document.cookie.match(/(?:^|; )cp_csrf=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : "";
+    }
+
     function renderDevices() {
       const items = [];
       if (hostStatus) {
@@ -1022,6 +1056,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       try {
         const resp = await fetch(base + "/dashboard/api/endpoints/" + endpointId, {
           method: "DELETE",
+          headers: { "X-CSRF-Token": getCsrf() },
         });
         if (!resp.ok && resp.status !== 204) throw new Error("HTTP " + resp.status);
         fetchEndpoints();
@@ -1647,11 +1682,10 @@ echo ControlPlane agent removed.
       resetCredsBtn.addEventListener("click", async () => {
         if (!confirm("Reset dashboard credentials? This will clear stored login and require setup on next visit.")) return;
         try {
-          const token = tokenInput.value.trim();
           const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
-          const resp = await fetch(base + "/api/reset-dashboard", {
+          const resp = await fetch(base + "/dashboard/api/reset-dashboard", {
             method: "POST",
-            headers: { Authorization: "Bearer " + token },
+            headers: { "X-CSRF-Token": getCsrf() },
           });
           if (!resp.ok) throw new Error("HTTP " + resp.status);
         } catch (e) {
@@ -1829,20 +1863,45 @@ def _check_password(username: str, password: str) -> bool:
 
 
 def _make_session_cookie() -> str:
+    ts = int(time.time())
     secret = os.environ.get("CONTROLPLANE_SESSION_SECRET", "change-me")
-    sig = hmac.new(secret.encode("utf-8"), b"auth", hashlib.sha256).hexdigest()
-    return f"ok.{sig}"
+    sig = hmac.new(secret.encode("utf-8"), str(ts).encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"ok.{sig}.{ts}"
 
 
 def _is_authed(request: Request) -> bool:
     cookie = request.cookies.get(_session_cookie)
     if not cookie:
         return False
+    parts = cookie.split(".")
+    if len(parts) != 3:
+        return False
+    _, sig, ts_str = parts
+    try:
+        ts = int(ts_str)
+    except ValueError:
+        return False
+    ttl = int(os.environ.get("CONTROLPLANE_SESSION_TTL_SEC", "86400"))
+    if time.time() - ts > ttl:
+        return False
     secret = os.environ.get("CONTROLPLANE_SESSION_SECRET", "change-me")
-    expected = hmac.new(secret.encode("utf-8"), b"auth", hashlib.sha256).hexdigest()
-    return cookie == f"ok.{expected}"
+    expected = hmac.new(secret.encode("utf-8"), ts_str.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(sig, expected)
 
 
 def _require_session(request: Request):
     if not _is_authed(request):
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+
+def _make_csrf_token() -> str:
+    return secrets.token_hex(16)
+
+
+def _require_csrf(request: Request):
+    token_cookie = request.cookies.get(_csrf_cookie, "")
+    token_header = request.headers.get("x-csrf-token", "")
+    if not token_cookie or not token_header:
+        raise HTTPException(status_code=403, detail="Missing CSRF token")
+    if not hmac.compare_digest(token_cookie, token_header):
+        raise HTTPException(status_code=403, detail="Invalid CSRF token")
