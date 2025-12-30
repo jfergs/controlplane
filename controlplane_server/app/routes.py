@@ -279,13 +279,15 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     .endpoint-card {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 16px;
       padding: 10px;
       display: flex;
       flex-direction: column;
       gap: 6px;
       box-shadow: 0 6px 14px rgba(0,0,0,0.14);
       transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
     }
     .endpoint-card.stale { border-color: #f97316; }
     .endpoint-card h4 { margin: 0; font-size: 16px; }
@@ -293,6 +295,8 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       transform: scale(1.02);
       box-shadow: 0 12px 26px rgba(0,0,0,0.2);
       border-color: var(--accent);
+      aspect-ratio: auto;
+      overflow: visible;
     }
     .endpoint-meta {
       display: flex;
@@ -347,6 +351,22 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       color: var(--muted);
     }
     .os-pill svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+    }
+    .device-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      background: var(--panel);
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .device-pill svg {
       width: 16px;
       height: 16px;
       stroke: currentColor;
@@ -683,6 +703,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       const uptime = formatDuration(e.uptime_sec);
       const detail = renderDetail(e);
       const osIcon = iconForOs(e.os);
+      const deviceIcon = iconForDevice(deviceKind(e));
       const label = isHost ? "Host" : "Endpoint";
       const expanded = expandedIds.has(e.endpoint_id);
       const deleteBtn = isHost
@@ -691,7 +712,10 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       return `<div class="endpoint-card ${stale ? "stale" : ""} ${expanded ? "expanded" : ""}" data-id="${e.endpoint_id}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div>
-            <h4>${e.endpoint_id}</h4>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <div class="device-pill">${deviceIcon}<span>${deviceKind(e)}</span></div>
+              <h4 style="margin:0;">${e.endpoint_id}</h4>
+            </div>
             <div class="os-pill">${osIcon}<span>${e.os || "unknown"}</span></div>
           </div>
           <div class="muted" style="font-size:12px;">${label}</div>
@@ -762,6 +786,27 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         else active += 1;
       });
       return { active, stale };
+    }
+
+    function deviceKind(e) {
+      const host = (e.endpoint_id || e.host || "").toLowerCase();
+      const os = (e.os || "").toLowerCase();
+      if (host.match(/(laptop|notebook|macbook|mbp|air)/)) return "Laptop";
+      if (host.match(/(srv|server|prd|prod|vm|node|rack)/)) return "Server";
+      if (os.includes("windows server")) return "Server";
+      return "Desktop";
+    }
+
+    function iconForDevice(kind) {
+      const k = (kind || "").toLowerCase();
+      if (k === "laptop") {
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M4 6h16v8H4z" stroke="currentColor"/><path d="M2 17h20" stroke="currentColor"/><path d="M8 19h8" stroke="currentColor"/></svg>';
+      }
+      if (k === "server") {
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><rect x="4" y="4" width="16" height="6" rx="1.2" stroke="currentColor"/><rect x="4" y="12" width="16" height="6" rx="1.2" stroke="currentColor"/><circle cx="8" cy="7" r=".8" fill="currentColor"/><circle cx="8" cy="15" r=".8" fill="currentColor"/></svg>';
+      }
+      // desktop default
+      return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><rect x="4" y="5" width="16" height="12" rx="1.2" stroke="currentColor"/><path d="M9 19h6" stroke="currentColor"/><path d="M10 17h4" stroke="currentColor"/></svg>';
     }
 
     function iconForOs(osName) {
