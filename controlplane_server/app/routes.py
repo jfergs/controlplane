@@ -8,6 +8,7 @@ import os
 # ruff: noqa: E501
 import platform
 import re
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -25,7 +26,7 @@ from .schemas import (
     StatusResponse,
 )
 from .security import require_token
-from .storage import delete_endpoint, get_endpoint, list_endpoints_db, save_endpoint
+from .storage import DB_PATH, delete_endpoint, get_endpoint, list_endpoints_db, save_endpoint
 from .system import status_payload
 
 router = APIRouter()
@@ -169,6 +170,27 @@ def logout():
     resp = RedirectResponse(url="/login", status_code=302)
     resp.delete_cookie(_session_cookie)
     return resp
+
+
+@router.post("/api/reset-dashboard", summary="Reset dashboard credentials")
+def reset_dashboard(authorization: str | None = Header(default=None)):
+    require_token(authorization)
+    if _creds_file.exists():
+        _creds_file.unlink(missing_ok=True)
+    return {"ok": True}
+
+
+@router.get("/api/db-check", summary="Database health")
+def db_check(authorization: str | None = Header(default=None)):
+    require_token(authorization)
+    path = str(DB_PATH)
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute("PRAGMA integrity_check")
+        conn.close()
+        return {"ok": True, "path": path}
+    except Exception as exc:  # pragma: no cover - health check only
+        raise HTTPException(status_code=500, detail=f"DB error: {exc}") from exc
 
 
 @router.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
@@ -675,6 +697,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let compactView = localStorage.getItem("cp_view") === "list";
     let panelsPref = JSON.parse(localStorage.getItem("cp_panels") || "{}");
     let expandAllActive = localStorage.getItem("cp_expand_all") === "1";
+    let dbHealth = null;
     // initialize visibility from panel toggles and saved prefs
     if (panelsPref.onboarding !== undefined) toggleOnboarding.checked = panelsPref.onboarding;
     if (panelsPref.warnings !== undefined) toggleWarnings.checked = panelsPref.warnings;
@@ -746,6 +769,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         lastRefresh = Date.now();
         lastError = null;
         updateHealthPill();
+        fetchDbHealth();
       } catch (err) {
         raw.textContent = "Error: " + err;
         lastError = err?.message || String(err);
@@ -875,6 +899,22 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       }
       updateHealthPill();
       renderSummary();
+    }
+
+    async function fetchDbHealth() {
+      const token = tokenInput.value.trim();
+      const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
+      try {
+        const resp = await fetch(base + "/api/db-check", {
+          headers: { Authorization: "Bearer " + token },
+        });
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        dbHealth = await resp.json();
+        renderSummary();
+      } catch (err) {
+        dbHealth = { ok: false, path: "", error: String(err) };
+        renderSummary();
+      }
     }
 
     function renderTile(e, isHost) {
@@ -1575,7 +1615,13 @@ echo ControlPlane agent removed.
       resetCredsBtn.addEventListener("click", async () => {
         if (!confirm("Reset dashboard credentials? This will clear stored login and require setup on next visit.")) return;
         try {
-          await fetch("/.controlplane_login.json", { method: "DELETE" });
+          const token = tokenInput.value.trim();
+          const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
+          const resp = await fetch(base + "/api/reset-dashboard", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + token },
+          });
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
         } catch (e) {
           // best effort
         }
@@ -1606,6 +1652,9 @@ echo ControlPlane agent removed.
       if (hostStatus) {
         const up = formatDuration(hostStatus.uptime_sec);
         rows.unshift(card("Host uptime", up, hostStatus.host || "local-host"));
+      }
+      if (dbHealth) {
+        rows.unshift(card("DB", dbHealth.ok ? "OK" : "Error", dbHealth.path || ""));
       }
       summaryGrid.innerHTML = rows.join("");
     }
