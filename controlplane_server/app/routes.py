@@ -488,6 +488,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
             <option value="server">Server</option>
           </select>
           <button id="filter-reset">Reset filters</button>
+          <button id="view-toggle">List view</button>
         </div>
       </div>
       <div id="devices" class="endpoint-grid">Loading…</div>
@@ -566,6 +567,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const filterReset = document.getElementById("filter-reset");
     const summaryGrid = document.getElementById("summary-grid");
     const rotateTokenBtn = document.getElementById("rotate-token");
+    const viewToggleBtn = document.getElementById("view-toggle");
     const onboardingCard = document.getElementById("onboarding-card");
     const warningsCard = document.getElementById("warnings-card");
     const gridCard = document.getElementById("grid-card");
@@ -597,6 +599,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let lockdown = localStorage.getItem("cp_lockdown") === "1";
     let lastRefresh = null;
     let lastError = null;
+    let compactView = localStorage.getItem("cp_view") === "list";
     // initialize visibility from panel toggles
     onboardingVisible = toggleOnboarding.checked;
     onboardingCard.hidden = !onboardingVisible;
@@ -611,6 +614,11 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     rawToggleBtn.textContent = rawVisible ? "Hide" : "Show";
     lockdownToggle.checked = lockdown;
     applyLockdown();
+    // apply view preference
+    if (compactView) {
+      devicesGrid.classList.add("compact");
+      if (viewToggleBtn) viewToggleBtn.textContent = "Tile view";
+    }
 
     function savePrefs() {
       localStorage.setItem("cp_token", tokenInput.value);
@@ -1332,17 +1340,6 @@ echo ControlPlane agent removed.
       }
     });
 
-    // Default: focus UX polish next (compact list toggle)
-    const compactToggle = document.createElement("button");
-    compactToggle.textContent = "List view";
-    compactToggle.style.marginLeft = "6px";
-    compactToggle.addEventListener("click", () => {
-      devicesGrid.classList.toggle("compact");
-      compactToggle.textContent = devicesGrid.classList.contains("compact") ? "Tile view" : "List view";
-    });
-    // append to devices header controls
-    const devicesControls = document.querySelector(".card.alt .controls");
-    if (devicesControls) devicesControls.appendChild(compactToggle);
 
     expandAllBtn.addEventListener("click", () => {
       expandAllActive = !expandAllActive;
@@ -1409,6 +1406,14 @@ echo ControlPlane agent removed.
       filterSearch.value = "";
       renderDevices();
     });
+    if (viewToggleBtn) {
+      viewToggleBtn.addEventListener("click", () => {
+        compactView = !compactView;
+        localStorage.setItem("cp_view", compactView ? "list" : "tile");
+        devicesGrid.classList.toggle("compact", compactView);
+        viewToggleBtn.textContent = compactView ? "Tile view" : "List view";
+      });
+    }
     function renderSummary() {
       if (!summaryGrid) return;
       const total = endpointsCache.length;
@@ -1437,6 +1442,42 @@ echo ControlPlane agent removed.
       summaryGrid.innerHTML = rows.join("");
     }
 
+    function renderTile(e, isHost) {
+      const age = isHost ? "just now" : timeAgo(e.last_seen);
+      const stale = isHost ? false : isStale(e.last_seen);
+      const uptime = formatDuration(e.uptime_sec);
+      const detail = renderDetail(e);
+      const osIcon = iconForOs(e.os);
+      const deviceIcon = iconForDevice(deviceKind(e));
+      const label = isHost ? "Host" : "Endpoint";
+      const expanded = expandedIds.has(e.endpoint_id);
+      const deleteBtn = isHost
+        ? ""
+        : `<button data-action="delete" data-id="${e.endpoint_id}">Delete</button>`;
+      let lastSeenBadge = age;
+      if (stale) lastSeenBadge += " • stale";
+      return `<div class="endpoint-card ${stale ? "stale" : ""} ${expanded ? "expanded" : ""}" data-id="${e.endpoint_id}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <div class="device-pill">${deviceIcon}<span>${deviceKind(e)}</span></div>
+              <h4 style="margin:0;">${e.endpoint_id}</h4>
+            </div>
+            <div class="os-pill">${osIcon}<span>${e.os || "unknown"}</span></div>
+          </div>
+          <div class="muted" style="font-size:12px;">${label}</div>
+        </div>
+        <div class="endpoint-meta">
+          <span>Last seen ${lastSeenBadge}</span>
+          <span>Uptime: ${uptime}</span>
+        </div>
+        <div class="endpoint-actions">
+          <button class="primary" data-action="toggle" data-id="${e.endpoint_id}">${expanded ? "Hide" : "Show"}</button>
+          ${deleteBtn}
+        </div>
+        <div class="endpoint-detail ${expanded ? "show" : ""}">${detail}</div>
+      </div>`;
+    }
     rotateTokenBtn.addEventListener("click", () => {
       const newToken = generateToken();
       tokenInput.value = newToken;
