@@ -459,6 +459,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         <h3 style="margin:0;">Devices</h3>
         <div class="controls" style="padding:6px 0; gap:6px;">
           <button id="expand-all">Expand all</button>
+          <input id="filter-search" type="text" placeholder="Search name/OS/warnings" style="min-width: 180px;" />
           <select id="filter-status">
             <option value="all">All</option>
             <option value="active">Active</option>
@@ -549,6 +550,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const filterStatus = document.getElementById("filter-status");
     const filterOs = document.getElementById("filter-os");
     const filterKind = document.getElementById("filter-kind");
+    const filterSearch = document.getElementById("filter-search");
     const onboardingCard = document.getElementById("onboarding-card");
     const warningsCard = document.getElementById("warnings-card");
     const gridCard = document.getElementById("grid-card");
@@ -834,6 +836,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       const osFilter = filterOs.value;
       const kindFilter = filterKind.value;
       const stale = isStale(e.last_seen);
+      const search = (filterSearch.value || "").toLowerCase().trim();
       if (statusFilter === "active" && stale) return false;
       if (statusFilter === "stale" && !stale) return false;
       const lowerOs = (e.os || "").toLowerCase();
@@ -843,6 +846,17 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       if (osFilter === "other" && (lowerOs.includes("windows") || lowerOs.includes("darwin") || lowerOs.includes("mac") || lowerOs.includes("linux"))) return false;
       const dk = deviceKind(e).toLowerCase();
       if (kindFilter !== "all" && dk !== kindFilter) return false;
+      if (search) {
+        const haystack = [
+          e.endpoint_id || "",
+          e.host || "",
+          e.os || "",
+          (e.warnings || []).join(" "),
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
       return true;
     }
 
@@ -1343,6 +1357,9 @@ echo ControlPlane agent removed.
     filterStatus.addEventListener("change", renderDevices);
     filterOs.addEventListener("change", renderDevices);
     filterKind.addEventListener("change", renderDevices);
+    filterSearch.addEventListener("input", () => {
+      renderDevices();
+    });
 
     toggleGrid.addEventListener("change", () => {
       rawVisible = toggleGrid.checked;
