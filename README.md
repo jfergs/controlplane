@@ -78,6 +78,7 @@ python -m controlplane_cli token-set --token "$CONTROLPLANE_TOKEN"
 - CORS is off by default; enable only for trusted origins if exposing the dashboard across domains.
 - Rate limiting (per-client, best-effort) can be enabled via `CONTROLPLANE_RATE_LIMIT` (e.g., `100/min`). Consider enforcing limits at the reverse proxy, too.
 - Database path can be overridden with `CONTROLPLANE_DB_PATH`; endpoint retention (in seconds) via `CONTROLPLANE_ENDPOINT_RETENTION_SEC`.
+- Dashboard login: first visit to `/login` lets you set username/password (stored in `.controlplane_login.json`). Sessions use `CONTROLPLANE_SESSION_SECRET`; rotate it to invalidate sessions.
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) runs ruff and pytest on push/PR to main.

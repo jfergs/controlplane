@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
+import os
+
 # ruff: noqa: E501
 import platform
 import re
 from datetime import UTC, datetime
+from pathlib import Path
+from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .config import APP_NAME
 from .schemas import (
@@ -23,6 +30,8 @@ from .system import status_payload
 
 router = APIRouter()
 _endpoint_store: dict[str, EndpointStatus] = {}
+_creds_file = Path(".controlplane_login.json")
+_session_cookie = "cp_auth"
 
 
 def _slugify(name: str) -> str:
@@ -115,8 +124,57 @@ def delete_endpoint_status(endpoint_id: str, authorization: str | None = Header(
     return Response(status_code=204)
 
 
+@router.get("/login", response_class=HTMLResponse, include_in_schema=False)
+def login_get(request: Request) -> HTMLResponse:  # pragma: no cover
+    if _is_authed(request):
+        return RedirectResponse(url="/dashboard", status_code=302)
+    needs_setup = _load_creds() is None
+    html = f"""
+<!DOCTYPE html>
+<html>
+<head><title>ControlPlane Login</title></head>
+<body style="font-family: sans-serif; background: #0b0f19; color: #e8ecf5; display: flex; align-items: center; justify-content: center; min-height: 100vh;">
+  <form method="post" action="/login" style="background: #151b2b; padding: 20px; border-radius: 12px; border: 1px solid #1f2a44; min-width: 280px;">
+    <h3>{"Setup" if needs_setup else "Login"}</h3>
+    <label>Username<br><input name="username" required style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #1f2a44; background: #0b0f19; color: #e8ecf5;"></label><br><br>
+    <label>Password<br><input type="password" name="password" required style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #1f2a44; background: #0b0f19; color: #e8ecf5;"></label><br><br>
+    <button type="submit" style="width: 100%; padding: 10px; border: none; border-radius: 10px; background: linear-gradient(135deg, #10a37f, #06b6d4); color: white; font-weight: 700; cursor: pointer;">{"Create account" if needs_setup else "Login"}</button>
+  </form>
+</body>
+</html>
+    """
+    return HTMLResponse(content=html)
+
+
+@router.post("/login", include_in_schema=False)
+async def login_post(request: Request):
+    body = (await request.body()).decode()
+    data = parse_qs(body)
+    username = (data.get("username") or [""])[0]
+    password = (data.get("password") or [""])[0]
+    if not username or not password:
+        return HTMLResponse(content="Invalid credentials", status_code=400)
+    creds = _load_creds()
+    if creds is None:
+        _save_creds(username, password)
+    elif not _check_password(username, password):
+        return HTMLResponse(content="Invalid credentials", status_code=401)
+    resp = RedirectResponse(url="/dashboard", status_code=302)
+    resp.set_cookie(_session_cookie, _make_session_cookie(), httponly=True, samesite="lax")
+    return resp
+
+
+@router.get("/logout", include_in_schema=False)
+def logout():
+    resp = RedirectResponse(url="/login", status_code=302)
+    resp.delete_cookie(_session_cookie)
+    return resp
+
+
 @router.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
-def dashboard() -> HTMLResponse:  # pragma: no cover - HTML UI
+def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
+    if not _is_authed(request):
+        return RedirectResponse(url="/login", status_code=302)
     html = """
 <!DOCTYPE html>
 <html lang="en">
@@ -842,3 +900,48 @@ echo ControlPlane agent removed.
 </html>
     """
     return HTMLResponse(content=html)
+
+
+def _load_creds() -> tuple[str, str] | None:
+    if not _creds_file.exists():
+        return None
+    try:
+        data = json.loads(_creds_file.read_text(encoding="utf-8"))
+        return data.get("username"), data.get("password_hash")
+    except Exception:
+        return None
+
+
+def _save_creds(username: str, password: str) -> None:
+    salt = os.environ.get("CONTROLPLANE_LOGIN_SALT", "salt")
+    pw_hash = hashlib.sha256(f"{salt}:{password}".encode()).hexdigest()
+    _creds_file.write_text(
+        json.dumps({"username": username, "password_hash": pw_hash}), encoding="utf-8"
+    )
+
+
+def _check_password(username: str, password: str) -> bool:
+    creds = _load_creds()
+    if not creds:
+        return False
+    stored_user, stored_hash = creds
+    salt = os.environ.get("CONTROLPLANE_LOGIN_SALT", "salt")
+    return (
+        stored_user == username
+        and stored_hash == hashlib.sha256(f"{salt}:{password}".encode()).hexdigest()
+    )
+
+
+def _make_session_cookie() -> str:
+    secret = os.environ.get("CONTROLPLANE_SESSION_SECRET", "change-me")
+    sig = hmac.new(secret.encode("utf-8"), b"auth", hashlib.sha256).hexdigest()
+    return f"ok.{sig}"
+
+
+def _is_authed(request: Request) -> bool:
+    cookie = request.cookies.get(_session_cookie)
+    if not cookie:
+        return False
+    secret = os.environ.get("CONTROLPLANE_SESSION_SECRET", "change-me")
+    expected = hmac.new(secret.encode("utf-8"), b"auth", hashlib.sha256).hexdigest()
+    return cookie == f"ok.{expected}"
