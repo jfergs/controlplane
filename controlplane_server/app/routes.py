@@ -282,6 +282,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       flex-direction: column;
       gap: 6px;
       box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+      aspect-ratio: 1 / 1;
     }
     .endpoint-card.stale { border-color: #f97316; }
     .endpoint-card h4 { margin: 0; font-size: 16px; }
@@ -364,13 +365,14 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     </div>
   </header>
   <main>
-    <div class="grid" id="stats-grid"></div>
     <div class="card alt">
-      <h3>Endpoints (pushed)</h3>
-      <div class="controls" style="padding:6px 0; gap:6px;">
-        <button id="refresh-endpoints">Refresh endpoints</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <h3 style="margin:0;">Devices</h3>
+        <div class="controls" style="padding:6px 0; gap:6px;">
+          <button id="refresh-endpoints">Refresh</button>
+        </div>
       </div>
-      <div id="endpoints" class="muted">Loading…</div>
+      <div id="devices" class="endpoint-grid">Loading…</div>
     </div>
     <div class="card">
       <h3>Onboarding</h3>
@@ -403,7 +405,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     </div>
   </main>
   <script>
-    const grid = document.getElementById("stats-grid");
+    const devicesGrid = document.getElementById("devices");
     const warningsList = document.getElementById("warnings");
     const raw = document.getElementById("raw");
     const tokenInput = document.getElementById("token");
@@ -411,7 +413,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const intervalInput = document.getElementById("interval");
     const refreshBtn = document.getElementById("refresh");
     const saveBtn = document.getElementById("save");
-    const endpointsDiv = document.getElementById("endpoints");
+    const endpointsDiv = devicesGrid; // alias for clarity
     const scriptPre = document.getElementById("script");
     const copyBtn = document.getElementById("copy-script");
     const copyUninstallBtn = document.getElementById("copy-uninstall");
@@ -426,6 +428,8 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     themeSelect.value = localStorage.getItem("cp_theme") || "graphite";
 
     let timer = null;
+    let hostStatus = null;
+    let endpointsCache = [];
 
     function savePrefs() {
       localStorage.setItem("cp_token", tokenInput.value);
@@ -453,10 +457,13 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         });
         if (!resp.ok) throw new Error("HTTP " + resp.status);
         const data = await resp.json();
+        hostStatus = data;
         render(data);
+        renderDevices();
       } catch (err) {
         raw.textContent = "Error: " + err;
-        grid.innerHTML = "";
+        hostStatus = null;
+        devicesGrid.innerHTML = "Error loading host: " + err;
       } finally {
         refreshBtn.disabled = false;
       }
@@ -522,44 +529,8 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         });
         if (!resp.ok) throw new Error("HTTP " + resp.status);
         const data = await resp.json();
-        if (!data.endpoints || data.endpoints.length === 0) {
-          endpointsDiv.innerHTML = "No endpoints pushed yet.";
-          return;
-        }
-        const sorted = [...data.endpoints].sort((a, b) =>
-          (b.last_seen || "").localeCompare(a.last_seen || "")
-        );
-        const health = summarizeHealth(sorted);
-        const cards = sorted
-          .map((e) => {
-            const age = timeAgo(e.last_seen);
-            const stale = isStale(e.last_seen);
-            const uptime = formatDuration(e.uptime_sec);
-            const detail = escapeHtml(JSON.stringify(e, null, 2));
-            const osIcon = iconForOs(e.os);
-            return `<div class="endpoint-card ${stale ? "stale" : ""}" data-id="${e.endpoint_id}">
-              <div>
-                <h4>${e.endpoint_id}</h4>
-                <div class="os-pill">${osIcon}<span>${e.os || "unknown"}</span></div>
-                <div class="endpoint-meta">
-                  <span>Last seen ${age}${stale ? " • stale" : ""}</span>
-                  <span>Uptime: ${uptime}</span>
-                </div>
-              </div>
-              <div class="endpoint-actions">
-                <button class="primary" data-action="toggle" data-id="${e.endpoint_id}">Expand</button>
-                <button data-action="delete" data-id="${e.endpoint_id}">Delete</button>
-              </div>
-              <div class="endpoint-detail" hidden>
-                <pre>${detail}</pre>
-              </div>
-            </div>`;
-          })
-          .join("");
-        endpointsDiv.innerHTML = `
-          <div class="muted">Active: ${health.active} • Stale: ${health.stale} • Total: ${data.endpoints.length}</div>
-          <div class="endpoint-grid">${cards}</div>
-        `;
+        endpointsCache = data.endpoints || [];
+        renderDevices();
       } catch (err) {
         endpointsDiv.innerHTML = "Error loading endpoints: " + err;
       }
@@ -606,6 +577,89 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
+    }
+
+    function renderDevices() {
+      const items = [];
+      if (hostStatus) {
+        const hostData = {
+          ...hostStatus,
+          endpoint_id: "local-host",
+          os: hostStatus.os,
+          last_seen: new Date().toISOString(),
+          uptime_sec: hostStatus.uptime_sec,
+        };
+        items.push(renderTile(hostData, true));
+      }
+      const sorted = [...endpointsCache].sort((a, b) =>
+        (b.last_seen || "").localeCompare(a.last_seen || "")
+      );
+      sorted.forEach((e) => items.push(renderTile(e, false)));
+      if (!items.length) {
+        devicesGrid.innerHTML = "No devices yet.";
+        return;
+      }
+      devicesGrid.innerHTML = items.join("");
+    }
+
+    function renderTile(e, isHost) {
+      const age = isHost ? "just now" : timeAgo(e.last_seen);
+      const stale = isHost ? false : isStale(e.last_seen);
+      const uptime = formatDuration(e.uptime_sec);
+      const detail = renderDetail(e);
+      const osIcon = iconForOs(e.os);
+      const label = isHost ? "Host" : "Endpoint";
+      const deleteBtn = isHost
+        ? ""
+        : `<button data-action="delete" data-id="${e.endpoint_id}">Delete</button>`;
+      return `<div class="endpoint-card ${stale ? "stale" : ""}" data-id="${e.endpoint_id}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div>
+            <h4>${e.endpoint_id}</h4>
+            <div class="os-pill">${osIcon}<span>${e.os || "unknown"}</span></div>
+          </div>
+          <div class="muted" style="font-size:12px;">${label}</div>
+        </div>
+        <div class="endpoint-meta">
+          <span>Last seen ${age}${stale ? " • stale" : ""}</span>
+          <span>Uptime: ${uptime}</span>
+        </div>
+        <div class="endpoint-actions">
+          <button class="primary" data-action="toggle" data-id="${e.endpoint_id}">Expand</button>
+          ${deleteBtn}
+        </div>
+        <div class="endpoint-detail" hidden>${detail}</div>
+      </div>`;
+    }
+
+    function renderDetail(e) {
+      const items = [];
+      items.push(card("Host", e.host || e.endpoint_id, e.os || ""));
+      items.push(card("Python", e.python || "—"));
+      items.push(card("Uptime", formatDuration(e.uptime_sec)));
+      if (e.disk_root) {
+        items.push(card("Disk /", `${e.disk_root.used_gb ?? "?"} / ${e.disk_root.total_gb ?? "?"} GB`, `Free ${e.disk_root.free_gb ?? "?"} GB`));
+      }
+      if (e.memory) {
+        items.push(card("Memory", `${e.memory.percent ?? "?"}%`, `${e.memory.available_gb ?? "?"} GB free`));
+      }
+      if (e.load_avg) {
+        items.push(card("Load avg", `1m ${e.load_avg["1m"] ?? "?"}`, `5m ${e.load_avg["5m"] ?? "?"} • 15m ${e.load_avg["15m"] ?? "?"}`));
+      }
+      if (e.net_io) {
+        items.push(card("Net I/O", `${e.net_io.bytes_sent ?? "?"} sent`, `${e.net_io.bytes_recv ?? "?"} recv`));
+      }
+      if (e.wifi) {
+        items.push(card("Wi-Fi", e.wifi.ssid || "—", `RSSI ${e.wifi.rssi_dbm ?? "?"} dBm`));
+      }
+      if (e.battery) {
+        items.push(card("Battery", `${e.battery.percent ?? "?"}%`, e.battery.charging === null ? "" : e.battery.charging ? "Charging" : "Discharging"));
+      }
+      const warnings = e.warnings && e.warnings.length
+        ? `<ul class="warnings">${e.warnings.map((w) => `<li>${escapeHtml(String(w))}</li>`).join("")}</ul>`
+        : "<div class='muted'>No warnings</div>";
+      const raw = `<pre>${escapeHtml(JSON.stringify(e, null, 2))}</pre>`;
+      return `<div class="grid">${items.join("")}</div>${warnings}${raw}`;
     }
 
     async function deleteEndpoint(endpointId) {
