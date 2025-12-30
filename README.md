@@ -32,8 +32,15 @@ CONTROLPLANE_TOKEN=your-long-token just docker-run
 Compose option:
 
 ```bash
-CONTROLPLANE_TOKEN=your-long-token docker compose up --build
+mkdir -p data
+CONTROLPLANE_TOKEN=your-long-token \
+CONTROLPLANE_SESSION_SECRET=$(openssl rand -hex 16) \
+CONTROLPLANE_DB_PATH=/data/.controlplane.db \
+CONTROLPLANE_ENDPOINT_RETENTION_SEC=0 \
+CONTROLPLANE_RATE_LIMIT=100/min \
+docker compose up --build
 ```
+The compose file mounts `./data` to `/data` in the container; adjust envs as needed.
 
 ## Tests and linting
 
