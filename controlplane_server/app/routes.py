@@ -383,6 +383,13 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       background: linear-gradient(135deg, #f97316, #fb923c);
       color: #2d1200;
     }
+    .meta-line {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 2px 0;
+    }
     .device-pill {
       display: inline-flex;
       align-items: center;
@@ -494,29 +501,29 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
             <button id="view-toggle">List view</button>
             <span class="muted" id="last-refresh-label" style="font-size:12px;"></span>
           </div>
-          <div class="controls" style="gap:6px; flex-wrap: wrap;">
-            <input id="filter-search" type="text" placeholder="Search name/OS/warnings" style="min-width: 180px;" />
-            <select id="filter-status">
-              <option value="all">All</option>
-              <option value="active">Active</option>
-              <option value="stale">Stale</option>
-            </select>
-            <select id="filter-os">
-              <option value="all">All OS</option>
-              <option value="windows">Windows</option>
-              <option value="mac">macOS</option>
-              <option value="linux">Linux</option>
-              <option value="other">Other</option>
-            </select>
-            <select id="filter-kind">
-              <option value="all">All types</option>
-              <option value="desktop">Desktop</option>
-              <option value="laptop">Laptop</option>
-              <option value="server">Server</option>
-            </select>
-            <button id="filter-reset">Reset filters</button>
-          </div>
         </div>
+      </div>
+      <div class="controls" style="gap:6px; flex-wrap: wrap; margin-bottom:6px;">
+        <input id="filter-search" type="text" placeholder="Search name/OS/warnings" style="min-width: 180px;" />
+        <select id="filter-status">
+          <option value="all">All</option>
+          <option value="active">Active</option>
+          <option value="stale">Stale</option>
+        </select>
+        <select id="filter-os">
+          <option value="all">All OS</option>
+          <option value="windows">Windows</option>
+          <option value="mac">macOS</option>
+          <option value="linux">Linux</option>
+          <option value="other">Other</option>
+        </select>
+        <select id="filter-kind">
+          <option value="all">All types</option>
+          <option value="desktop">Desktop</option>
+          <option value="laptop">Laptop</option>
+          <option value="server">Server</option>
+        </select>
+        <button id="filter-reset">Reset filters</button>
       </div>
       <div id="devices" class="endpoint-grid">Loading…</div>
     </div>
@@ -1512,23 +1519,15 @@ echo ControlPlane agent removed.
       const statusPill = `<span class="status-pill ${stale ? "stale" : "ok"}">${stale ? "Stale" : "OK"}</span>`;
       return `<div class="endpoint-card ${stale ? "stale" : ""} ${expanded ? "expanded" : ""}" data-id="${e.endpoint_id}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <div class="device-pill">${deviceIcon}<span>${deviceKind(e)}</span></div>
-              <h4 style="margin:0;">${e.endpoint_id}</h4>
-            </div>
-            <div class="os-pill">${osIcon}<span>${e.os || "unknown"}</span></div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
-            <div class="muted" style="font-size:12px;">${label}</div>
-            ${statusPill}
-          </div>
+          <div class="device-pill">${deviceIcon}<span>${deviceKind(e)}</span></div>
+          ${statusPill}
         </div>
-        <div class="endpoint-meta">
-          <span>Last seen ${lastSeenBadge}</span>
-          <span>Uptime: ${uptime}</span>
-        </div>
-        <div class="endpoint-actions">
+        <h4 style="margin:4px 0;">${e.endpoint_id}</h4>
+        <div class="os-pill">${osIcon}<span>${e.os || "unknown"}</span></div>
+        <div class="meta-line"><span>Type</span><span>${label}</span></div>
+        <div class="meta-line"><span>Last seen</span><span>${lastSeenBadge}</span></div>
+        <div class="meta-line"><span>Uptime</span><span>${uptime}</span></div>
+        <div class="endpoint-actions" style="margin-top:6px;">
           <button class="primary" data-action="toggle" data-id="${e.endpoint_id}">${expanded ? "Hide" : "Show"}</button>
           ${deleteBtn}
         </div>
