@@ -1298,12 +1298,14 @@ launchctl unload ~/Library/LaunchAgents/com.controlplane.agent.plist 2>/dev/null
 rm -f ~/Library/LaunchAgents/com.controlplane.agent.plist
 rm -f ~/controlplane-agent.py
 rm -rf ~/.controlplane-agent
+rm -f ~/controlplane-agent.log ~/controlplane-agent.err /tmp/controlplane-agent.log /tmp/controlplane-agent.err
 echo "ControlPlane agent removed."`;
       }
       return `@echo off
 schtasks /Delete /TN "ControlPlaneAgent" /F
 del %USERPROFILE%\\controlplane-agent.py
 rd /S /Q %USERPROFILE%\\controlplane-agent
+del %USERPROFILE%\\controlplane-agent.log
 echo ControlPlane agent removed.
 `;
     }
