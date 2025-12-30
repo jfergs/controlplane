@@ -182,6 +182,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ControlPlane Dashboard</title>
+  <link rel="icon" type="image/png" href="/static/icon.png" />
   <style>
     :root {
       --bg: #0b0f19;
@@ -451,6 +452,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let endpointsCache = [];
     let scriptVisible = false;
     let rawVisible = false;
+    let expandedIds = new Set();
 
     function savePrefs() {
       localStorage.setItem("cp_token", tokenInput.value);
@@ -597,10 +599,11 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       const detail = renderDetail(e);
       const osIcon = iconForOs(e.os);
       const label = isHost ? "Host" : "Endpoint";
+      const expanded = expandedIds.has(e.endpoint_id);
       const deleteBtn = isHost
         ? ""
         : `<button data-action="delete" data-id="${e.endpoint_id}">Delete</button>`;
-      return `<div class="endpoint-card ${stale ? "stale" : ""}" data-id="${e.endpoint_id}">
+      return `<div class="endpoint-card ${stale ? "stale" : ""} ${expanded ? "expanded" : ""}" data-id="${e.endpoint_id}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div>
             <h4>${e.endpoint_id}</h4>
@@ -613,10 +616,10 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
           <span>Uptime: ${uptime}</span>
         </div>
         <div class="endpoint-actions">
-          <button class="primary" data-action="toggle" data-id="${e.endpoint_id}">Expand</button>
+          <button class="primary" data-action="toggle" data-id="${e.endpoint_id}">${expanded ? "Collapse" : "Expand"}</button>
           ${deleteBtn}
         </div>
-        <div class="endpoint-detail">${detail}</div>
+        <div class="endpoint-detail ${expanded ? "show" : ""}">${detail}</div>
       </div>`;
     }
 
@@ -1007,7 +1010,10 @@ echo ControlPlane agent removed.
         if (detail) {
           detail.classList.toggle("show");
           card.classList.toggle("expanded");
-          btn.textContent = detail.classList.contains("show") ? "Collapse" : "Expand";
+          const expanded = detail.classList.contains("show");
+          btn.textContent = expanded ? "Collapse" : "Expand";
+          if (expanded) expandedIds.add(id);
+          else expandedIds.delete(id);
         }
       }
     });
