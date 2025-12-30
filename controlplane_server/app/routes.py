@@ -273,18 +273,22 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     }
     .endpoint-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 320px));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 220px));
       gap: 12px;
       justify-content: center;
     }
     .endpoint-grid.compact {
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    }
+    .endpoint-grid.compact .endpoint-card {
+      aspect-ratio: auto;
+      max-width: 100%;
     }
     .endpoint-card {
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 10px;
+      padding: 8px;
       display: flex;
       flex-direction: column;
       gap: 6px;
@@ -484,29 +488,33 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     <div class="card alt">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <h3 style="margin:0;">Devices</h3>
-        <div class="controls" style="padding:6px 0; gap:6px;">
-          <button id="expand-all">Expand all</button>
-          <input id="filter-search" type="text" placeholder="Search name/OS/warnings" style="min-width: 180px;" />
-          <select id="filter-status">
-            <option value="all">All</option>
-            <option value="active">Active</option>
-            <option value="stale">Stale</option>
-          </select>
-          <select id="filter-os">
-            <option value="all">All OS</option>
-            <option value="windows">Windows</option>
-            <option value="mac">macOS</option>
-            <option value="linux">Linux</option>
-            <option value="other">Other</option>
-          </select>
-          <select id="filter-kind">
-            <option value="all">All types</option>
-            <option value="desktop">Desktop</option>
-            <option value="laptop">Laptop</option>
-            <option value="server">Server</option>
-          </select>
-          <button id="filter-reset">Reset filters</button>
-          <button id="view-toggle">List view</button>
+        <div class="controls" style="padding:6px 0; gap:6px; flex-wrap: wrap;">
+          <div class="controls" style="gap:6px;">
+            <button id="expand-all">Expand all</button>
+            <button id="view-toggle">List view</button>
+          </div>
+          <div class="controls" style="gap:6px; flex-wrap: wrap;">
+            <input id="filter-search" type="text" placeholder="Search name/OS/warnings" style="min-width: 180px;" />
+            <select id="filter-status">
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="stale">Stale</option>
+            </select>
+            <select id="filter-os">
+              <option value="all">All OS</option>
+              <option value="windows">Windows</option>
+              <option value="mac">macOS</option>
+              <option value="linux">Linux</option>
+              <option value="other">Other</option>
+            </select>
+            <select id="filter-kind">
+              <option value="all">All types</option>
+              <option value="desktop">Desktop</option>
+              <option value="laptop">Laptop</option>
+              <option value="server">Server</option>
+            </select>
+            <button id="filter-reset">Reset filters</button>
+          </div>
         </div>
       </div>
       <div id="devices" class="endpoint-grid">Loading…</div>
