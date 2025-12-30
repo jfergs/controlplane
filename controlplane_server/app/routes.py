@@ -386,7 +386,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
 <body>
   <header>
     <div class="brand">
-      <img id="header-icon" src="/static/aircon.png" alt="ControlPlane" style="width:28px;height:28px;border-radius:6px;" />
+      <img id="header-icon" src="/static/aircon.png" alt="ControlPlane" style="width:56px;height:56px;border-radius:10px;" />
       <span>ControlPlane Dashboard</span>
     </div>
     <div class="controls">
