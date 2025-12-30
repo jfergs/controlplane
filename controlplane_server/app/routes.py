@@ -523,6 +523,15 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let expandedIds = new Set();
     let onboardingVisible = false;
     let expandAllActive = false;
+    // initialize visibility from panel toggles
+    onboardingVisible = toggleOnboarding.checked;
+    onboardingContent.hidden = !onboardingVisible;
+    onboardingToggle.textContent = onboardingVisible ? "Hide" : "Show";
+    warningsList.hidden = !toggleWarnings.checked;
+    warningsToggleBtn.textContent = toggleWarnings.checked ? "Hide" : "Show";
+    rawVisible = toggleGrid.checked;
+    raw.hidden = !rawVisible;
+    rawToggleBtn.textContent = rawVisible ? "Hide" : "Show";
 
     function savePrefs() {
       localStorage.setItem("cp_token", tokenInput.value);
@@ -1153,6 +1162,11 @@ echo ControlPlane agent removed.
       if (hidden) {
         panelsDropdown.removeAttribute("hidden");
       } else {
+        panelsDropdown.setAttribute("hidden", "");
+      }
+    });
+    document.addEventListener("click", (ev) => {
+      if (!panelsDropdown.hidden && !panelsDropdown.contains(ev.target) && !panelsToggleBtn.contains(ev.target)) {
         panelsDropdown.setAttribute("hidden", "");
       }
     });
