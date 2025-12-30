@@ -429,6 +429,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       <span>ControlPlane Dashboard</span>
     </div>
     <div class="controls">
+      <div class="pill" id="health-pill">Endpoints: —</div>
       <select id="theme-select" style="min-width: 150px;">
         <option value="default">Default</option>
         <option value="midnight">Midnight Teal</option>
@@ -454,6 +455,24 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         <h3 style="margin:0;">Devices</h3>
         <div class="controls" style="padding:6px 0; gap:6px;">
           <button id="expand-all">Expand all</button>
+          <select id="filter-status">
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="stale">Stale</option>
+          </select>
+          <select id="filter-os">
+            <option value="all">All OS</option>
+            <option value="windows">Windows</option>
+            <option value="mac">macOS</option>
+            <option value="linux">Linux</option>
+            <option value="other">Other</option>
+          </select>
+          <select id="filter-kind">
+            <option value="all">All types</option>
+            <option value="desktop">Desktop</option>
+            <option value="laptop">Laptop</option>
+            <option value="server">Server</option>
+          </select>
         </div>
       </div>
       <div id="devices" class="endpoint-grid">Loading…</div>
@@ -523,6 +542,9 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const faviconLink = document.querySelector("link[rel='icon']");
     const warningsToggleBtn = document.getElementById("warnings-toggle");
     const expandAllBtn = document.getElementById("expand-all");
+    const filterStatus = document.getElementById("filter-status");
+    const filterOs = document.getElementById("filter-os");
+    const filterKind = document.getElementById("filter-kind");
     const onboardingCard = document.getElementById("onboarding-card");
     const warningsCard = document.getElementById("warnings-card");
     const gridCard = document.getElementById("grid-card");
@@ -531,6 +553,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const toggleOnboarding = document.getElementById("toggle-onboarding");
     const toggleWarnings = document.getElementById("toggle-warnings");
     const toggleGrid = document.getElementById("toggle-grid");
+    const healthPill = document.getElementById("health-pill");
 
     const defaultUrl = window.location.origin;
     const defaultToken = """
@@ -687,17 +710,23 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
           last_seen: new Date().toISOString(),
           uptime_sec: hostStatus.uptime_sec,
         };
-        items.push(renderTile(hostData, true));
+        items.push(hostData);
       }
       const sorted = [...endpointsCache].sort((a, b) =>
         (b.last_seen || "").localeCompare(a.last_seen || "")
       );
-      sorted.forEach((e) => items.push(renderTile(e, false)));
-      if (!items.length) {
-        devicesGrid.innerHTML = "No devices yet.";
-        return;
+      sorted.forEach((e) => items.push(e));
+      const filtered = items.filter(matchesFilters);
+      const rendered = filtered.map((e) => renderTile(e, e.endpoint_id === "local-host"));
+      if (!rendered.length) {
+        devicesGrid.innerHTML = "No devices match the filters.";
+      } else {
+        devicesGrid.innerHTML = rendered.join("");
       }
-      devicesGrid.innerHTML = items.join("");
+      const health = summarizeHealth(endpointsCache);
+      if (healthPill) {
+        healthPill.textContent = `Endpoints: ${health.active} active • ${health.stale} stale / ${endpointsCache.length} total`;
+      }
     }
 
     function renderTile(e, isHost) {
@@ -789,6 +818,23 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         else active += 1;
       });
       return { active, stale };
+    }
+
+    function matchesFilters(e) {
+      const statusFilter = filterStatus.value;
+      const osFilter = filterOs.value;
+      const kindFilter = filterKind.value;
+      const stale = isStale(e.last_seen);
+      if (statusFilter === "active" && stale) return false;
+      if (statusFilter === "stale" && !stale) return false;
+      const lowerOs = (e.os || "").toLowerCase();
+      if (osFilter === "windows" && !lowerOs.includes("windows")) return false;
+      if (osFilter === "mac" && !(lowerOs.includes("darwin") || lowerOs.includes("mac"))) return false;
+      if (osFilter === "linux" && !lowerOs.includes("linux")) return false;
+      if (osFilter === "other" && (lowerOs.includes("windows") || lowerOs.includes("darwin") || lowerOs.includes("mac") || lowerOs.includes("linux"))) return false;
+      const dk = deviceKind(e).toLowerCase();
+      if (kindFilter !== "all" && dk !== kindFilter) return false;
+      return true;
     }
 
     function deviceKind(e) {
@@ -1269,6 +1315,10 @@ echo ControlPlane agent removed.
         warningsToggleBtn.textContent = "Show";
       }
     });
+
+    filterStatus.addEventListener("change", renderDevices);
+    filterOs.addEventListener("change", renderDevices);
+    filterKind.addEventListener("change", renderDevices);
 
     toggleGrid.addEventListener("change", () => {
       rawVisible = toggleGrid.checked;
