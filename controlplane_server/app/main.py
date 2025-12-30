@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator, metrics
 
 from .config import APP_NAME, APP_VERSION
@@ -23,6 +26,9 @@ def create_app() -> FastAPI:
     instrumentator.instrument(app, metric_namespace="controlplane").expose(
         app, include_in_schema=False
     )
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
     return app
 
 
