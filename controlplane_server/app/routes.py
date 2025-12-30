@@ -587,6 +587,10 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     tokenInput.value = localStorage.getItem("cp_token") || defaultToken;
     intervalInput.value = localStorage.getItem("cp_interval") || "5";
     themeSelect.value = localStorage.getItem("cp_theme") || "graphite";
+    filterStatus.value = localStorage.getItem("cp_filter_status") || "all";
+    filterOs.value = localStorage.getItem("cp_filter_os") || "all";
+    filterKind.value = localStorage.getItem("cp_filter_kind") || "all";
+    filterSearch.value = localStorage.getItem("cp_filter_search") || "";
 
     let timer = null;
     let hostStatus = null;
@@ -626,8 +630,12 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       localStorage.setItem("cp_interval", intervalInput.value || "5");
       localStorage.setItem("cp_theme", themeSelect.value || "graphite");
       localStorage.setItem("cp_lockdown", lockdown ? "1" : "0");
-    schedule();
-  }
+      localStorage.setItem("cp_filter_status", filterStatus.value);
+      localStorage.setItem("cp_filter_os", filterOs.value);
+      localStorage.setItem("cp_filter_kind", filterKind.value);
+      localStorage.setItem("cp_filter_search", filterSearch.value);
+      schedule();
+    }
 
     function generateToken() {
       if (window.crypto && window.crypto.getRandomValues) {
@@ -1397,6 +1405,7 @@ echo ControlPlane agent removed.
     filterOs.addEventListener("change", renderDevices);
     filterKind.addEventListener("change", renderDevices);
     filterSearch.addEventListener("input", () => {
+      localStorage.setItem("cp_filter_search", filterSearch.value);
       renderDevices();
     });
     filterReset.addEventListener("click", () => {
@@ -1404,6 +1413,10 @@ echo ControlPlane agent removed.
       filterOs.value = "all";
       filterKind.value = "all";
       filterSearch.value = "";
+      localStorage.setItem("cp_filter_status", "all");
+      localStorage.setItem("cp_filter_os", "all");
+      localStorage.setItem("cp_filter_kind", "all");
+      localStorage.setItem("cp_filter_search", "");
       renderDevices();
     });
     if (viewToggleBtn) {
