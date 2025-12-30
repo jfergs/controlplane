@@ -361,6 +361,24 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       height: 16px;
       stroke: currentColor;
     }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .status-pill.ok {
+      background: linear-gradient(135deg, #22c55e, #10b981);
+      color: #06210f;
+    }
+    .status-pill.stale {
+      background: linear-gradient(135deg, #f97316, #fb923c);
+      color: #2d1200;
+    }
     .device-pill {
       display: inline-flex;
       align-items: center;
@@ -1469,6 +1487,7 @@ echo ControlPlane agent removed.
         : `<button data-action="delete" data-id="${e.endpoint_id}">Delete</button>`;
       let lastSeenBadge = age;
       if (stale) lastSeenBadge += " • stale";
+      const statusPill = `<span class="status-pill ${stale ? "stale" : "ok"}">${stale ? "Stale" : "OK"}</span>`;
       return `<div class="endpoint-card ${stale ? "stale" : ""} ${expanded ? "expanded" : ""}" data-id="${e.endpoint_id}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div>
@@ -1478,7 +1497,10 @@ echo ControlPlane agent removed.
             </div>
             <div class="os-pill">${osIcon}<span>${e.os || "unknown"}</span></div>
           </div>
-          <div class="muted" style="font-size:12px;">${label}</div>
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+            <div class="muted" style="font-size:12px;">${label}</div>
+            ${statusPill}
+          </div>
         </div>
         <div class="endpoint-meta">
           <span>Last seen ${lastSeenBadge}</span>
