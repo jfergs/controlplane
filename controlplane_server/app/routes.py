@@ -800,9 +800,7 @@ echo ControlPlane agent removed.
     });
 
     copyUninstallBtn.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(generateUninstallScript());
-      copyUninstallBtn.textContent = "Copied!";
-      setTimeout(() => (copyUninstallBtn.textContent = "Copy uninstall"), 1200);
+      await copyText(generateUninstallScript(), copyUninstallBtn, "Copy uninstall");
     });
     themeSelect.addEventListener("change", () => {
       applyTheme(themeSelect.value);
@@ -819,6 +817,26 @@ echo ControlPlane agent removed.
     applyTheme(themeSelect.value);
     refreshScript();
     schedule();
+
+    async function copyText(text, btn, defaultLabel) {
+      const original = btn.textContent;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          document.body.removeChild(ta);
+        }
+        btn.textContent = "Copied!";
+      } catch (err) {
+        btn.textContent = "Copy failed";
+      }
+      setTimeout(() => (btn.textContent = defaultLabel), 1200);
+    }
   </script>
 </body>
 </html>
