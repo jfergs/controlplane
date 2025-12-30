@@ -42,6 +42,18 @@ docker compose up --build
 ```
 The compose file mounts `./data` to `/data` in the container; adjust envs as needed.
 
+Redeploy/update with the latest image (after pulling from GitHub):
+
+```bash
+git pull origin main
+CONTROLPLANE_TOKEN=your-long-token \
+CONTROLPLANE_SESSION_SECRET=$(openssl rand -hex 16) \
+CONTROLPLANE_DB_PATH=/data/.controlplane.db \
+CONTROLPLANE_ENDPOINT_RETENTION_SEC=0 \
+CONTROLPLANE_RATE_LIMIT=100/min \
+docker compose pull && docker compose up -d
+```
+
 ## Tests and linting
 
 ```bash
