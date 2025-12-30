@@ -393,7 +393,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         <button id="copy-script">Copy script</button>
         <button id="copy-uninstall">Copy uninstall</button>
       </div>
-      <pre id="script" style="white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--panel); padding: 12px; border-radius: 10px; border: 1px solid var(--border);"></pre>
+      <pre id="script" hidden style="white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--panel); padding: 12px; border-radius: 10px; border: 1px solid var(--border);"></pre>
     </div>
     <div class="card alt">
       <h3>Warnings</h3>
@@ -430,6 +430,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let timer = null;
     let hostStatus = null;
     let endpointsCache = [];
+    let scriptVisible = false;
 
     function savePrefs() {
       localStorage.setItem("cp_token", tokenInput.value);
@@ -481,39 +482,6 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
 
     function render(data) {
       raw.textContent = JSON.stringify(data, null, 2);
-      const cards = [];
-      cards.push(card("Host", data.host, data.os));
-      cards.push(card("Python", data.python));
-      cards.push(card("Uptime (s)", data.uptime_sec));
-      const d = data.disk_root || {};
-      cards.push(
-        card(
-          "Disk /",
-          `${d.used_gb ?? "?"} / ${d.total_gb ?? "?"} GB`,
-          `Free ${d.free_gb ?? "?"} GB`
-        )
-      );
-      const m = data.memory || {};
-      cards.push(card("Memory", `${m.percent ?? "?"}%`, `${m.available_gb ?? "?"} GB free`));
-      const l = data.load_avg || {};
-      cards.push(
-        card("Load avg", `1m ${l["1m"] ?? "?"}`, `5m ${l["5m"] ?? "?"} • 15m ${l["15m"] ?? "?"}`)
-      );
-      const n = data.net_io || {};
-      cards.push(card("Net I/O", `${n.bytes_sent ?? "?"} sent`, `${n.bytes_recv ?? "?"} recv`));
-      if (data.cpu_temp_c !== undefined) cards.push(card("CPU Temp (C)", data.cpu_temp_c));
-      const wifi = data.wifi || {};
-      cards.push(card("Wi-Fi", wifi.ssid || "—", `RSSI ${wifi.rssi_dbm ?? "?"} dBm`));
-      const bat = data.battery || {};
-      cards.push(
-        card(
-          "Battery",
-          `${bat.percent ?? "?"}%`,
-          bat.charging === null ? "" : bat.charging ? "Charging" : "Discharging"
-        )
-      );
-      grid.innerHTML = cards.join("");
-
       const warnings = data.warnings || [];
       warningsList.innerHTML = warnings.length
         ? warnings.map((w) => `<li>${w}</li>`).join("")
@@ -1023,15 +991,22 @@ echo ControlPlane agent removed.
       }
     });
 
-    osSelect.addEventListener("change", refreshScript);
-    tokenInput.addEventListener("input", refreshScript);
-    urlInput.addEventListener("input", refreshScript);
+    osSelect.addEventListener("change", () => {
+      scriptVisible = true;
+      refreshScript();
+    });
+    tokenInput.addEventListener("input", () => {
+      if (scriptVisible) refreshScript();
+    });
+    urlInput.addEventListener("input", () => {
+      if (scriptVisible) refreshScript();
+    });
 
     saveBtn.addEventListener("click", () => savePrefs());
     refreshBtn.addEventListener("click", fetchStatus);
     refreshEndpointsBtn.addEventListener("click", fetchEndpoints);
     applyTheme(themeSelect.value);
-    refreshScript();
+    if (scriptVisible) refreshScript();
     schedule();
 
     async function copyText(text, btn, defaultLabel) {
