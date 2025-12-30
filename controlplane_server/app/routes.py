@@ -478,6 +478,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
             <option value="laptop">Laptop</option>
             <option value="server">Server</option>
           </select>
+          <button id="filter-reset">Reset filters</button>
         </div>
       </div>
       <div id="devices" class="endpoint-grid">Loading…</div>
@@ -551,6 +552,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const filterOs = document.getElementById("filter-os");
     const filterKind = document.getElementById("filter-kind");
     const filterSearch = document.getElementById("filter-search");
+    const filterReset = document.getElementById("filter-reset");
     const onboardingCard = document.getElementById("onboarding-card");
     const warningsCard = document.getElementById("warnings-card");
     const gridCard = document.getElementById("grid-card");
@@ -1358,6 +1360,13 @@ echo ControlPlane agent removed.
     filterOs.addEventListener("change", renderDevices);
     filterKind.addEventListener("change", renderDevices);
     filterSearch.addEventListener("input", () => {
+      renderDevices();
+    });
+    filterReset.addEventListener("click", () => {
+      filterStatus.value = "all";
+      filterOs.value = "all";
+      filterKind.value = "all";
+      filterSearch.value = "";
       renderDevices();
     });
 
