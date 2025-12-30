@@ -632,7 +632,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let endpointsCache = [];
     let scriptVisible = false;
     let rawVisible = false;
-    let expandedIds = new Set();
+    let expandedIds = new Set((localStorage.getItem("cp_expanded") || "").split(",").filter(Boolean));
     let onboardingVisible = false;
     let expandAllActive = false;
     let lockdown = localStorage.getItem("cp_lockdown") === "1";
@@ -816,6 +816,8 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       } else {
         devicesGrid.innerHTML = rendered.join("");
       }
+      // persist expanded ids
+      localStorage.setItem("cp_expanded", Array.from(expandedIds).join(","));
       updateHealthPill();
       renderSummary();
     }
