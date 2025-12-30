@@ -56,6 +56,8 @@ def cleanup_retention() -> None:
         retention_seconds = int(RETENTION_SEC)
     except Exception:
         return
+    if retention_seconds <= 0:
+        return
     cutoff = datetime.now(UTC) - timedelta(seconds=retention_seconds)
     with _conn() as conn:
         conn.execute(
