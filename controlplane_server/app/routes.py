@@ -658,7 +658,11 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     let lastRefresh = null;
     let lastError = null;
     let compactView = localStorage.getItem("cp_view") === "list";
-    // initialize visibility from panel toggles
+    let panelsPref = JSON.parse(localStorage.getItem("cp_panels") || "{}");
+    // initialize visibility from panel toggles and saved prefs
+    if (panelsPref.onboarding !== undefined) toggleOnboarding.checked = panelsPref.onboarding;
+    if (panelsPref.warnings !== undefined) toggleWarnings.checked = panelsPref.warnings;
+    if (panelsPref.grid !== undefined) toggleGrid.checked = panelsPref.grid;
     onboardingVisible = toggleOnboarding.checked;
     onboardingCard.hidden = !onboardingVisible;
     onboardingContent.hidden = !onboardingVisible;
@@ -1351,6 +1355,8 @@ echo ControlPlane agent removed.
       rawToggleBtn.textContent = rawVisible ? "Hide" : "Show";
       toggleGrid.checked = rawVisible;
       gridCard.hidden = !rawVisible;
+      panelsPref.grid = rawVisible;
+      localStorage.setItem("cp_panels", JSON.stringify(panelsPref));
     });
 
     warningsToggleBtn.addEventListener("click", () => {
@@ -1446,6 +1452,8 @@ echo ControlPlane agent removed.
       onboardingCard.hidden = !onboardingVisible;
       onboardingContent.hidden = !onboardingVisible;
       onboardingToggle.textContent = onboardingVisible ? "Hide" : "Show";
+      panelsPref.onboarding = onboardingVisible;
+      localStorage.setItem("cp_panels", JSON.stringify(panelsPref));
     });
 
     toggleWarnings.addEventListener("change", () => {
@@ -1453,11 +1461,14 @@ echo ControlPlane agent removed.
         warningsCard.hidden = false;
         warningsList.removeAttribute("hidden");
         warningsToggleBtn.textContent = "Hide";
+        panelsPref.warnings = true;
       } else {
         warningsCard.hidden = true;
         warningsList.setAttribute("hidden", "");
         warningsToggleBtn.textContent = "Show";
+        panelsPref.warnings = false;
       }
+      localStorage.setItem("cp_panels", JSON.stringify(panelsPref));
     });
 
     filterStatus.addEventListener("change", () => {
