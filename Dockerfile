@@ -7,9 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN --mount=type=cache,target=/var/cache/apt \
-    apt-get update && apt-get install -y --no-install-recommends build-essential && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN python -m venv /venv
 ENV PATH="/venv/bin:$PATH"
@@ -17,8 +16,7 @@ ENV PATH="/venv/bin:$PATH"
 COPY pyproject.toml README.md ./
 COPY controlplane_server controlplane_server
 
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-compile --upgrade pip && \
+RUN pip install --no-compile --upgrade pip && \
     pip install --no-compile .
 
 FROM python:3.12-slim AS runtime
