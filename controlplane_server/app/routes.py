@@ -186,8 +186,13 @@ def db_check(authorization: str | None = Header(default=None)):
     path = str(DB_PATH)
     try:
         conn = sqlite3.connect(path)
-        conn.execute("PRAGMA integrity_check")
+        cur = conn.execute("PRAGMA integrity_check")
+        row = cur.fetchone()
         conn.close()
+        result = (row[0] if row else "").strip().lower()
+        ok = result == "ok"
+        if not ok:
+            raise HTTPException(status_code=500, detail=f"DB integrity check failed: {row}")
         return {"ok": True, "path": path}
     except Exception as exc:  # pragma: no cover - health check only
         raise HTTPException(status_code=500, detail=f"DB error: {exc}") from exc
@@ -197,9 +202,7 @@ def db_check(authorization: str | None = Header(default=None)):
 def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     if not _is_authed(request):
         return RedirectResponse(url="/login", status_code=302)
-    token_js = json.dumps(os.environ.get("CONTROLPLANE_TOKEN", ""))
-    html = (
-        """
+    html = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -672,9 +675,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const resetCredsBtn = document.getElementById("reset-creds");
 
     const defaultUrl = window.location.origin;
-    const defaultToken = """
-        + token_js
-        + """;
+    const defaultToken = "";
     urlInput.value = localStorage.getItem("cp_url") || defaultUrl;
     tokenInput.value = localStorage.getItem("cp_token") || defaultToken;
     intervalInput.value = localStorage.getItem("cp_interval") || "5";
@@ -1654,7 +1655,8 @@ echo ControlPlane agent removed.
         rows.unshift(card("Host uptime", up, hostStatus.host || "local-host"));
       }
       if (dbHealth) {
-        rows.unshift(card("DB", dbHealth.ok ? "OK" : "Error", dbHealth.path || ""));
+        const subtitle = dbHealth.ok ? (dbHealth.path || "") : (dbHealth.error || dbHealth.path || "");
+        rows.unshift(card("DB", dbHealth.ok ? "OK" : "Error", subtitle));
       }
       summaryGrid.innerHTML = rows.join("");
     }
@@ -1762,7 +1764,6 @@ echo ControlPlane agent removed.
 </body>
 </html>
     """
-    )
     return HTMLResponse(content=html)
 
 
