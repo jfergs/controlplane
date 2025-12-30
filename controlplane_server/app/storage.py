@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from collections.abc import Iterable
@@ -98,11 +99,11 @@ def save_endpoint(status: EndpointStatus) -> None:
                 status.disk_root.model_dump_json(),
                 status.cpu_temp_c,
                 status.memory.model_dump_json(),
-                status.load_avg.as_alias_dict(),
+                status.load_avg.model_dump_json(by_alias=True),
                 status.net_io.model_dump_json(),
                 status.wifi.model_dump_json() if status.wifi else None,
                 status.battery.model_dump_json() if status.battery else None,
-                status.warnings,
+                json.dumps(status.warnings),
                 status.last_seen,
             ),
         )
@@ -126,6 +127,36 @@ def _row_to_status(row: tuple) -> EndpointStatus:
         warnings,
         last_seen,
     ) = row
+    # Stored JSON columns need to be deserialized before validation
+    try:
+        disk = json.loads(disk_root) if isinstance(disk_root, str) else disk_root
+    except Exception:
+        disk = {}
+    try:
+        mem = json.loads(memory) if isinstance(memory, str) else memory
+    except Exception:
+        mem = {}
+    try:
+        load = json.loads(load_avg) if isinstance(load_avg, str) else load_avg
+    except Exception:
+        load = {}
+    try:
+        net = json.loads(net_io) if isinstance(net_io, str) else net_io
+    except Exception:
+        net = {}
+    try:
+        wifi_data = json.loads(wifi) if isinstance(wifi, str) else wifi
+    except Exception:
+        wifi_data = None
+    try:
+        battery_data = json.loads(battery) if isinstance(battery, str) else battery
+    except Exception:
+        battery_data = None
+    try:
+        warnings_list = json.loads(warnings) if isinstance(warnings, str) else warnings
+    except Exception:
+        warnings_list = []
+
     return EndpointStatus.model_validate(
         {
             "endpoint_id": endpoint_id,
@@ -133,14 +164,14 @@ def _row_to_status(row: tuple) -> EndpointStatus:
             "os": os_name,
             "python": python,
             "uptime_sec": uptime_sec,
-            "disk_root": disk_root,
+            "disk_root": disk,
             "cpu_temp_c": cpu_temp_c,
-            "memory": memory,
-            "load_avg": load_avg,
-            "net_io": net_io,
-            "wifi": wifi,
-            "battery": battery,
-            "warnings": warnings,
+            "memory": mem,
+            "load_avg": load,
+            "net_io": net,
+            "wifi": wifi_data,
+            "battery": battery_data,
+            "warnings": warnings_list,
             "last_seen": last_seen,
         }
     )
