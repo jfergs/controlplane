@@ -588,6 +588,16 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       </div>
       <pre id="raw" hidden style="white-space: pre-wrap; font-size: 12px; color: var(--muted);"></pre>
     </div>
+    <div class="card" id="password-card" hidden>
+      <div class="section-header">
+        <h3 style="margin:0;">Dashboard password reset</h3>
+        <button id="password-toggle">Show</button>
+      </div>
+      <div id="password-content" hidden>
+        <p class="muted">Reset the dashboard username/password. This clears the stored credentials and will prompt for a new login on next visit.</p>
+        <button id="reset-creds">Reset dashboard credentials</button>
+      </div>
+    </div>
   </main>
   <button id="awaken-btn" class="awaken-btn">Awaken</button>
   <script>
@@ -634,6 +644,10 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const healthPill = document.getElementById("health-pill");
     const lockdownToggle = document.getElementById("lockdown-toggle");
     const clearStateBtn = document.getElementById("clear-state");
+    const passwordCard = document.getElementById("password-card");
+    const passwordToggle = document.getElementById("password-toggle");
+    const passwordContent = document.getElementById("password-content");
+    const resetCredsBtn = document.getElementById("reset-creds");
 
     const defaultUrl = window.location.origin;
     const defaultToken = """
@@ -665,6 +679,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     if (panelsPref.onboarding !== undefined) toggleOnboarding.checked = panelsPref.onboarding;
     if (panelsPref.warnings !== undefined) toggleWarnings.checked = panelsPref.warnings;
     if (panelsPref.grid !== undefined) toggleGrid.checked = panelsPref.grid;
+    if (panelsPref.password !== undefined && passwordCard) passwordCard.hidden = !panelsPref.password;
     onboardingVisible = toggleOnboarding.checked;
     onboardingCard.hidden = !onboardingVisible;
     onboardingContent.hidden = !onboardingVisible;
@@ -1388,12 +1403,15 @@ echo ControlPlane agent removed.
         warningsToggleBtn.textContent = "Hide";
         toggleWarnings.checked = true;
         warningsCard.hidden = false;
+        panelsPref.warnings = true;
       } else {
         warningsList.setAttribute("hidden", "");
         warningsToggleBtn.textContent = "Show";
         toggleWarnings.checked = false;
         warningsCard.hidden = true;
+        panelsPref.warnings = false;
       }
+      localStorage.setItem("cp_panels", JSON.stringify(panelsPref));
     });
 
     awakenBtn.addEventListener("click", () => {
@@ -1410,6 +1428,8 @@ echo ControlPlane agent removed.
       onboardingContent.hidden = !onboardingVisible;
       onboardingToggle.textContent = onboardingVisible ? "Hide" : "Show";
       toggleOnboarding.checked = onboardingVisible;
+      panelsPref.onboarding = onboardingVisible;
+      localStorage.setItem("cp_panels", JSON.stringify(panelsPref));
     });
 
     lockdownToggle.addEventListener("change", () => {
@@ -1534,6 +1554,32 @@ echo ControlPlane agent removed.
         ["cp_token","cp_url","cp_interval","cp_theme","cp_lockdown","cp_filter_status","cp_filter_os","cp_filter_kind","cp_filter_search","cp_view","cp_panels","cp_expanded","cp_expand_all"].forEach((k) => localStorage.removeItem(k));
         alert("Saved state cleared. Reloading...");
         location.reload();
+      });
+    }
+    if (passwordToggle && passwordContent) {
+      passwordToggle.addEventListener("click", () => {
+        const hidden = passwordContent.hasAttribute("hidden");
+        if (hidden) {
+          passwordContent.removeAttribute("hidden");
+          passwordToggle.textContent = "Hide";
+          panelsPref.password = true;
+        } else {
+          passwordContent.setAttribute("hidden", "");
+          passwordToggle.textContent = "Show";
+          panelsPref.password = false;
+        }
+        localStorage.setItem("cp_panels", JSON.stringify(panelsPref));
+      });
+    }
+    if (resetCredsBtn) {
+      resetCredsBtn.addEventListener("click", async () => {
+        if (!confirm("Reset dashboard credentials? This will clear stored login and require setup on next visit.")) return;
+        try {
+          await fetch("/.controlplane_login.json", { method: "DELETE" });
+        } catch (e) {
+          // best effort
+        }
+        alert("Credentials reset. Restart the server if needed, and set a new username/password on next login.");
       });
     }
     function renderSummary() {
