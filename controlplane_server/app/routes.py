@@ -852,9 +852,7 @@ echo ControlPlane agent removed.
     }
 
     copyBtn.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(scriptPre.textContent);
-      copyBtn.textContent = "Copied!";
-      setTimeout(() => (copyBtn.textContent = "Copy script"), 1200);
+      await copyText(scriptPre.textContent, copyBtn, "Copy script");
     });
 
     copyUninstallBtn.addEventListener("click", async () => {
@@ -878,20 +876,31 @@ echo ControlPlane agent removed.
 
     async function copyText(text, btn, defaultLabel) {
       const original = btn.textContent;
+      const fallback = () => {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      };
       try {
-        if (navigator.clipboard && window.isSecureContext) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
           await navigator.clipboard.writeText(text);
         } else {
-          const ta = document.createElement("textarea");
-          ta.value = text;
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand("copy");
-          document.body.removeChild(ta);
+          fallback();
         }
         btn.textContent = "Copied!";
       } catch (err) {
-        btn.textContent = "Copy failed";
+        try {
+          fallback();
+          btn.textContent = "Copied!";
+        } catch (e) {
+          btn.textContent = "Copy failed";
+        }
       }
       setTimeout(() => (btn.textContent = defaultLabel), 1200);
     }
