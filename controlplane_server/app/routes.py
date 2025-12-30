@@ -182,7 +182,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ControlPlane Dashboard</title>
-  <link rel="icon" type="image/png" href="/static/icon.png" />
+  <link rel="icon" type="image/png" href="/static/aircon.png" />
   <style>
     :root {
       --bg: #0b0f19;
@@ -355,6 +355,22 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       justify-content: space-between;
       gap: 10px;
     }
+    .awaken-btn {
+      position: fixed;
+      bottom: 18px;
+      right: 18px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #10a37f, #06b6d4);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+    }
+    .awaken-btn:disabled {
+      opacity: 0.65;
+      cursor: default;
+    }
     button {
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
       border: none;
@@ -369,7 +385,10 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
 </head>
 <body>
   <header>
-    <div class="brand">⚡ ControlPlane Dashboard</div>
+    <div class="brand">
+      <img id="header-icon" src="/static/aircon.png" alt="ControlPlane" style="width:28px;height:28px;border-radius:6px;" />
+      <span>ControlPlane Dashboard</span>
+    </div>
     <div class="controls">
       <select id="theme-select" style="min-width: 150px;">
         <option value="default">Default</option>
@@ -422,6 +441,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       <pre id="raw" hidden style="white-space: pre-wrap; font-size: 12px; color: var(--muted);"></pre>
     </div>
   </main>
+  <button id="awaken-btn" class="awaken-btn">Awaken</button>
   <script>
     const devicesGrid = document.getElementById("devices");
     const warningsList = document.getElementById("warnings");
@@ -440,6 +460,9 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const refreshEndpointsBtn = document.getElementById("refresh-endpoints");
     const scriptToggleBtn = document.getElementById("script-toggle");
     const rawToggleBtn = document.getElementById("raw-toggle");
+    const awakenBtn = document.getElementById("awaken-btn");
+    const headerIcon = document.getElementById("header-icon");
+    const faviconLink = document.querySelector("link[rel='icon']");
 
     const defaultUrl = window.location.origin;
     urlInput.value = localStorage.getItem("cp_url") || defaultUrl;
@@ -1047,6 +1070,15 @@ echo ControlPlane agent removed.
       rawVisible = !rawVisible;
       raw.hidden = !rawVisible;
       rawToggleBtn.textContent = rawVisible ? "Hide" : "Show";
+    });
+
+    awakenBtn.addEventListener("click", () => {
+      headerIcon.src = "/static/eyecon.png";
+      if (faviconLink) {
+        faviconLink.href = "/static/eyecon.png";
+      }
+      awakenBtn.textContent = "Awakened";
+      awakenBtn.disabled = true;
     });
 
     async function copyText(text, btn, defaultLabel) {
