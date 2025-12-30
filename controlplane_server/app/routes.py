@@ -383,6 +383,25 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       background: linear-gradient(135deg, #f97316, #fb923c);
       color: #2d1200;
     }
+    .post-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .post-badge.ok {
+      background: rgba(16,163,127,0.12);
+      color: #10a37f;
+      border: 1px solid rgba(16,163,127,0.4);
+    }
+    .post-badge.stale {
+      background: rgba(249,115,22,0.12);
+      color: #f97316;
+      border: 1px solid rgba(249,115,22,0.4);
+    }
     .meta-line {
       display: flex;
       justify-content: space-between;
@@ -1519,6 +1538,7 @@ echo ControlPlane agent removed.
       let lastSeenBadge = age;
       if (stale) lastSeenBadge += " • stale";
       const statusPill = `<span class="status-pill ${stale ? "stale" : "ok"}">${stale ? "Stale" : "OK"}</span>`;
+      const postBadge = `<span class="post-badge ${stale ? "stale" : "ok"}">${stale ? "Last post stale" : "Last post OK"}</span>`;
       return `<div class="endpoint-card ${stale ? "stale" : ""} ${expanded ? "expanded" : ""}" data-id="${e.endpoint_id}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div class="device-pill">${deviceIcon}<span>${deviceKind(e)}</span></div>
@@ -1528,6 +1548,7 @@ echo ControlPlane agent removed.
         <div class="os-pill">${osIcon}<span>${e.os || "unknown"}</span></div>
         <div class="meta-line"><span>Type</span><span>${label}</span></div>
         <div class="meta-line"><span>Last seen</span><span>${lastSeenBadge}</span></div>
+        <div class="meta-line"><span>Last post</span><span>${postBadge}</span></div>
         <div class="meta-line"><span>Uptime</span><span>${uptime}</span></div>
         <div class="endpoint-actions" style="margin-top:6px;">
           <button class="primary" data-action="toggle" data-id="${e.endpoint_id}">${expanded ? "Hide" : "Show"}</button>
