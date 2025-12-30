@@ -268,6 +268,78 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       padding: 10px 12px;
       font-size: 14px;
     }
+    .endpoint-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .endpoint-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+    }
+    .endpoint-card.stale { border-color: #f97316; }
+    .endpoint-card h4 { margin: 0; font-size: 16px; }
+    .endpoint-meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .endpoint-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .endpoint-actions button {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel-alt);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .endpoint-actions button.primary {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .endpoint-detail {
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+      margin-top: 4px;
+    }
+    .endpoint-detail pre {
+      white-space: pre-wrap;
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      margin: 0;
+    }
+    .os-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .os-pill svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+    }
     button {
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
       border: none;
@@ -321,11 +393,6 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       </div>
       <pre id="script" style="white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--panel); padding: 12px; border-radius: 10px; border: 1px solid var(--border);"></pre>
     </div>
-    <div class="card">
-      <h3>Endpoint Detail</h3>
-      <div id="endpoint-detail-header" class="muted">Select "View" on an endpoint to load details here.</div>
-      <pre id="endpoint-detail" style="white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--panel); padding: 12px; border-radius: 10px; border: 1px solid var(--border);"></pre>
-    </div>
     <div class="card alt">
       <h3>Warnings</h3>
       <ul class="warnings" id="warnings"></ul>
@@ -350,8 +417,6 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
     const copyUninstallBtn = document.getElementById("copy-uninstall");
     const osSelect = document.getElementById("os-select");
     const themeSelect = document.getElementById("theme-select");
-    const endpointDetail = document.getElementById("endpoint-detail");
-    const endpointDetailHeader = document.getElementById("endpoint-detail-header");
     const refreshEndpointsBtn = document.getElementById("refresh-endpoints");
 
     const defaultUrl = window.location.origin;
@@ -465,21 +530,35 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
           (b.last_seen || "").localeCompare(a.last_seen || "")
         );
         const health = summarizeHealth(sorted);
+        const cards = sorted
+          .map((e) => {
+            const age = timeAgo(e.last_seen);
+            const stale = isStale(e.last_seen);
+            const uptime = formatDuration(e.uptime_sec);
+            const detail = escapeHtml(JSON.stringify(e, null, 2));
+            const osIcon = iconForOs(e.os);
+            return `<div class="endpoint-card ${stale ? "stale" : ""}" data-id="${e.endpoint_id}">
+              <div>
+                <h4>${e.endpoint_id}</h4>
+                <div class="os-pill">${osIcon}<span>${e.os || "unknown"}</span></div>
+                <div class="endpoint-meta">
+                  <span>Last seen ${age}${stale ? " • stale" : ""}</span>
+                  <span>Uptime: ${uptime}</span>
+                </div>
+              </div>
+              <div class="endpoint-actions">
+                <button class="primary" data-action="toggle" data-id="${e.endpoint_id}">Expand</button>
+                <button data-action="delete" data-id="${e.endpoint_id}">Delete</button>
+              </div>
+              <div class="endpoint-detail" hidden>
+                <pre>${detail}</pre>
+              </div>
+            </div>`;
+          })
+          .join("");
         endpointsDiv.innerHTML = `
           <div class="muted">Active: ${health.active} • Stale: ${health.stale} • Total: ${data.endpoints.length}</div>
-          ${sorted
-            .map((e) => {
-              const age = timeAgo(e.last_seen);
-              const stale = isStale(e.last_seen);
-              return `<div class="row">
-                <span>${e.endpoint_id} <span class="muted">(${age}${stale ? " • stale" : ""})</span></span>
-                <span>
-                  <button onclick="window.viewEndpoint('${e.endpoint_id}')">View</button>
-                  <button onclick="window.deleteEndpoint('${e.endpoint_id}')">Delete</button>
-                </span>
-              </div>`;
-            })
-            .join("")}
+          <div class="endpoint-grid">${cards}</div>
         `;
       } catch (err) {
         endpointsDiv.innerHTML = "Error loading endpoints: " + err;
@@ -509,26 +588,27 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       }
     }
 
-    window.viewEndpoint = async (endpointId) => {
-      const token = tokenInput.value.trim();
-      const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
-      try {
-        const resp = await fetch(base + "/api/endpoints/" + endpointId, {
-          headers: { Authorization: "Bearer " + token },
-        });
-        if (!resp.ok) throw new Error("HTTP " + resp.status);
-        const data = await resp.json();
-        raw.textContent = JSON.stringify(data, null, 2);
-        endpointDetail.textContent = JSON.stringify(data, null, 2);
-        endpointDetailHeader.textContent = `${data.endpoint_id} • ${timeAgo(data.last_seen)}${isStale(data.last_seen) ? " • stale" : ""}`;
-      } catch (err) {
-        raw.textContent = "Error loading endpoint: " + err;
-        endpointDetail.textContent = "";
-        endpointDetailHeader.textContent = "Error loading endpoint.";
-      }
-    };
+    function formatDuration(seconds) {
+      if (seconds == null) return "—";
+      const sec = Math.max(0, Math.floor(seconds));
+      const days = Math.floor(sec / 86400);
+      const hours = Math.floor((sec % 86400) / 3600);
+      const mins = Math.floor((sec % 3600) / 60);
+      if (days) return `${days}d ${hours}h`;
+      if (hours) return `${hours}h ${mins}m`;
+      return `${mins}m`;
+    }
 
-    window.deleteEndpoint = async (endpointId) => {
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    async function deleteEndpoint(endpointId) {
       const token = tokenInput.value.trim();
       const base = (urlInput.value || defaultUrl).replace(/\\/$/, "");
       if (!confirm(`Delete endpoint ${endpointId}?`)) return;
@@ -542,7 +622,7 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
       } catch (err) {
         alert("Failed to delete: " + err);
       }
-    };
+    }
 
     function summarizeHealth(endpoints) {
       let active = 0;
@@ -552,6 +632,14 @@ def dashboard(request: Request) -> HTMLResponse:  # pragma: no cover - HTML UI
         else active += 1;
       });
       return { active, stale };
+    }
+
+    function iconForOs(osName) {
+      const lower = (osName || "").toLowerCase();
+      if (lower.includes("windows")) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M4 5.5l7-1.5v8h-7zm8 0l8-1.5v9h-8zm-8 9.5h7v7l-7-1.5zm8 0h8v7l-8-1.5z" stroke="currentColor"/></svg>';
+      if (lower.includes("darwin") || lower.includes("mac") || lower.includes("os x")) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M17 3c-.6.8-1.2 1.3-2 1.6-.3-.8-.8-1.5-1.5-2 .8-.3 1.6-.6 2.5-.6 1 0 1.8.3 2.5.9-.5.9-1.1 1.4-1.5 1.6zM12.7 6c1.2 0 2.2.4 3 .4.6 0 1.6-.4 2.8-.4-.7 1.8-.3 4.5-.3 4.5s-1.6.2-2.6-1.2c-.9-1.2-.9-2.3-2.8-2.3s-2 1.2-3.2 2.4c-1.2 1.2-2.3 1-2.3 1 .2-1.8 1-3.4 2.2-4.5.8-.7 1.7-1.1 2.2-1.1zm-3 6.8c1.1.9 2.1.8 3.5.3 1.4-.5 2.1-.5 3.1 0 1.2.6 2.1.6 3.1 0 0 0-.3 1.2-1.1 2.3-.8 1.2-2 2.1-3.1 2.1-1 0-1.7-.7-2.9-.7-1.2 0-1.9.7-3 .7-1 0-2.1-.8-3-2.1-.9-1.2-1.4-2.9-1.4-2.9s1.6.3 2.8.3z" stroke="currentColor" stroke-linejoin="round"/></svg>';
+      if (lower.includes("linux")) return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M12 3c-1.8 0-3 1.5-3 3.3v6.9c0 2.2-.4 3.8-1.5 5.5-.2.3-.1.8.2 1 .3.2.8.1 1-.2 1.1-1.7 1.8-3.5 1.8-6.3h1v6.3c0 .4.3.8.7.8s.8-.4.8-.8v-6.3h1c0 2.8.7 4.7 1.8 6.4.2.3.6.4 1 .2.3-.2.4-.6.2-1-1.1-1.7-1.5-3.3-1.5-5.6V6.3C15 4.5 13.8 3 12 3z" stroke="currentColor"/><circle cx="10" cy="6.5" r=".7" fill="currentColor"/><circle cx="14" cy="6.5" r=".7" fill="currentColor"/></svg>';
+      return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M4 6h16v12H4z" stroke="currentColor"/><path d="M8 10h8" stroke="currentColor"/><path d="M8 14h5" stroke="currentColor"/></svg>';
     }
 
     function generateScript() {
@@ -861,6 +949,24 @@ echo ControlPlane agent removed.
     themeSelect.addEventListener("change", () => {
       applyTheme(themeSelect.value);
       localStorage.setItem("cp_theme", themeSelect.value);
+    });
+    endpointsDiv.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("button[data-action]");
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
+      if (action === "delete" && id) {
+        deleteEndpoint(id);
+        return;
+      }
+      if (action === "toggle") {
+        const card = btn.closest(".endpoint-card");
+        const detail = card?.querySelector(".endpoint-detail");
+        if (detail) {
+          detail.hidden = !detail.hidden;
+          btn.textContent = detail.hidden ? "Expand" : "Collapse";
+        }
+      }
     });
 
     osSelect.addEventListener("change", refreshScript);
