@@ -208,9 +208,7 @@ def reset_dashboard_session(request: Request):
     return {"ok": True}
 
 
-@router.get("/api/db-check", summary="Database health")
-def db_check(authorization: str | None = Header(default=None)):
-    require_token(authorization)
+def _db_health():
     path = str(DB_PATH)
     try:
         conn = sqlite3.connect(path)
@@ -224,6 +222,12 @@ def db_check(authorization: str | None = Header(default=None)):
         return {"ok": True, "path": path}
     except Exception as exc:  # pragma: no cover - health check only
         raise HTTPException(status_code=500, detail=f"DB error: {exc}") from exc
+
+
+@router.get("/api/db-check", summary="Database health")
+def db_check(authorization: str | None = Header(default=None)):
+    require_token(authorization)
+    return _db_health()
 
 
 @router.get(
@@ -265,7 +269,7 @@ def delete_endpoint_proxy(endpoint_id: str, request: Request):
 @router.get("/dashboard/api/db-check", summary="Database health (session auth)")
 def db_check_proxy(request: Request):
     _require_session(request)
-    return db_check(authorization=None)
+    return _db_health()
 
 
 @router.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
